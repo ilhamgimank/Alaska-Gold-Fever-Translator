@@ -1,7 +1,8 @@
-﻿// Features/TextDumper.cs (Fitur dumper teks utama) (Update: Filter Anti-Duplikat Terjemahan)
+﻿// Features/TextDumper.cs (Fitur dumper teks utama dengan Regex Auto-Detector)
 using System.IO;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using System.Text.RegularExpressions;
 using AlaskaGoldFeverTranslator.Managers;
 
 namespace AlaskaGoldFeverTranslator.Features
@@ -81,59 +82,84 @@ namespace AlaskaGoldFeverTranslator.Features
             return false;
         }
 
+        // Method mengamankan karakter khusus regex agar tidak error
+        private static string EscapeForRegex(string text)
+        {
+            string[] specialChars = { "\\", "^", "$", ".", "|", "?", "*", "+", "(", ")", "[", "]", "{", "}" };
+            string safeText = text;
+            foreach (var c in specialChars)
+            {
+                safeText = safeText.Replace(c, "\\" + c);
+            }
+            return safeText;
+        }
+
         public static void DumpString(string text, string uiType, bool isRegex = false)
         {
             if (string.IsNullOrWhiteSpace(text)) return;
             if (IsSpamText(text, uiType)) return;
 
-            // [FITUR BARU] Filter mutlak agar Dumper TIDAK MENCATAT teks yang sudah ada di memori terjemahan
-            // Mencegah Teks Inggris yang sudah diterjemahkan masuk lagi ke file dump
-            if (TranslationManager.TranslatedStrings.ContainsKey(text)) return;
+            // [FITUR BARU] Filter Angka dan Pembuat Regex Otomatis
+            bool hasLetter = Regex.IsMatch(text, @"[a-zA-Z]");
+            bool hasNumber = Regex.IsMatch(text, @"\d+");
 
-            // Mencegah Teks Bahasa Indonesia (hasil terjemahan) dianggap sebagai teks baru dan masuk ke file dump
-            if (TranslationManager.TranslatedValues.Contains(text)) return;
+            // 1. Blokir teks matematika/harga murni (Contoh: "$0,00", "+100") agar tidak spam!
+            if (hasNumber && !hasLetter) return;
 
-            bool isNew = false;
-
-            lock (_lock)
+            // 2. Jika mengandung angka dan huruf, jadikan Pola Regex!
+            if (hasNumber && hasLetter)
             {
-                if (isRegex)
+                string safePattern = EscapeForRegex(text);
+                // Mengubah semua angka yang ada di teks menjadi parameter penangkap "(\d+)"
+                string regexKey = Regex.Replace(safePattern, @"\d+", @"(\d+)");
+
+                // Memastikan teks benar-benar memiliki perubahan (Bukan anomali)
+                if (regexKey != safePattern)
                 {
-                    if (!_dumpedRegexs.Contains(text))
+                    // Jangan catat jika format regex ini sudah pernah diterjemahkan
+                    if (TranslationManager.TranslatedRegexs.ContainsKey(regexKey)) return;
+
+                    bool isNewRegex = false;
+                    lock (_lock)
                     {
-                        _dumpedRegexs.Add(text);
-                        isNew = true;
+                        if (!_dumpedRegexs.Contains(regexKey))
+                        {
+                            _dumpedRegexs.Add(regexKey);
+                            isNewRegex = true;
+                        }
                     }
-                }
-                else
-                {
-                    if (!_dumpedStrings.Contains(text))
+
+                    if (isNewRegex)
                     {
-                        _dumpedStrings.Add(text);
-                        isNew = true;
+                        Main.Logger.LogInfo($"[{uiType}][New Auto-Regex] \"{regexKey}\" -> saved to untranslation_regexs.json");
+                        Task.Run(() => SaveDataToFile(UntranslatedRegexPath, _dumpedRegexs));
                     }
+
+                    // BERHENTI DI SINI! Teks berangka tidak boleh masuk ke dumper statis atau Google Translate.
+                    return;
                 }
             }
 
-            // Jika ini adalah teks baru yang belum pernah di-dump, masukkan ke antrean AutoTranslator!
-            if (isNew)
+            // 3. Sistem Teks Statis Biasa
+            if (TranslationManager.TranslatedStrings.ContainsKey(text)) return;
+            if (TranslationManager.TranslatedValues.Contains(text)) return;
+
+            bool isNewStatic = false;
+            lock (_lock)
             {
-                string textType = isRegex ? "Regex" : "Static Text";
-                string fileName = isRegex ? "untranslation_regexs.json" : "untranslation_strings.json";
-
-                Main.Logger.LogInfo($"[{uiType}][New {textType} Dumped] \"{text}\", added to {fileName}");
-
-                if (isRegex)
+                if (!_dumpedStrings.Contains(text))
                 {
-                    Task.Run(() => SaveDataToFile(UntranslatedRegexPath, _dumpedRegexs));
+                    _dumpedStrings.Add(text);
+                    isNewStatic = true;
                 }
-                else
-                {
-                    Task.Run(() => SaveDataToFile(UntranslatedStringsPath, _dumpedStrings));
+            }
 
-                    // Kirim ke robot Google Translate
-                    AutoTranslator.AddToQueue(text);
-                }
+            if (isNewStatic)
+            {
+                Main.Logger.LogInfo($"[{uiType}][New Static Text Dumped] \"{text}\", added to untranslation_strings.json");
+                Task.Run(() => SaveDataToFile(UntranslatedStringsPath, _dumpedStrings));
+
+                AutoTranslator.AddToQueue(text); // Masukkan ke robot Google Translate
             }
         }
 

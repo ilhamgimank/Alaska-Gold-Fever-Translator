@@ -17,7 +17,8 @@ namespace AlaskaGoldFeverTranslator.Patches
         {
             if (string.IsNullOrEmpty(value)) return;
 
-            if (TranslationManager.TranslatedStrings.TryGetValue(value, out string translatedText))
+            // [FITUR BARU] Menggunakan TryTranslate agar mendukung pengecekan Regex otomatis!
+            if (TranslationManager.TryTranslate(value, out string translatedText))
             {
                 value = translatedText;
             }
@@ -34,7 +35,7 @@ namespace AlaskaGoldFeverTranslator.Patches
 
             TextDumper.DumpString(__instance.text, "UI-Prefab", false);
 
-            if (TranslationManager.TranslatedStrings.TryGetValue(__instance.text, out string translatedText))
+            if (TranslationManager.TryTranslate(__instance.text, out string translatedText))
             {
                 __instance.text = translatedText;
             }
@@ -82,11 +83,11 @@ namespace AlaskaGoldFeverTranslator.Patches
                     }
                 }
 
-                Main.Logger.LogInfo("Extreme TMP Translation Patches applied successfully.");
+                Main.Logger.LogInfo("Extreme TMP Translation Patches with Regex support applied successfully.");
             }
             else
             {
-                Main.Logger.LogError("FAILED to find TMPro.TMP_Text! Game might be using a heavily modified TextMeshPro.");
+                Main.Logger.LogError("FAILED to find TMPro.TMP_Text!");
             }
         }
 
@@ -94,24 +95,22 @@ namespace AlaskaGoldFeverTranslator.Patches
         {
             if (string.IsNullOrEmpty(value)) return;
 
-            if (TranslationManager.TranslatedStrings.TryGetValue(value, out string translatedText))
+            if (TranslationManager.TryTranslate(value, out string translatedText))
             {
                 value = translatedText;
             }
         }
 
-        // Penjelasan: __0 adalah cara ajaib Harmony untuk mengambil parameter pertama dari method asli (SetText)
         private static void SetTextPrefix(ref string __0)
         {
             if (string.IsNullOrEmpty(__0)) return;
 
-            if (TranslationManager.TranslatedStrings.TryGetValue(__0, out string translatedText))
+            if (TranslationManager.TryTranslate(__0, out string translatedText))
             {
                 __0 = translatedText;
             }
         }
 
-        // Dipanggil otomatis saat Awake, OnEnable, atau Start berjalan di game
         private static void CatchPrefabText(Component __instance)
         {
             if (__instance == null) return;
@@ -124,7 +123,7 @@ namespace AlaskaGoldFeverTranslator.Patches
                 {
                     TextDumper.DumpString(originalText, "TMP-Prefab", false);
 
-                    if (TranslationManager.TranslatedStrings.TryGetValue(originalText, out string translatedText))
+                    if (TranslationManager.TryTranslate(originalText, out string translatedText))
                     {
                         prop.SetValue(__instance, translatedText, null);
                     }

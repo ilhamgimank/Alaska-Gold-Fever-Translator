@@ -15,7 +15,7 @@ namespace AlaskaGoldFeverTranslator
         {
             public const string PLUGIN_GUID = "com.ilhamgimank.alaskagoldfever.translator";
             public const string PLUGIN_NAME = "Alaska Gold Fever Translator";
-            public const string PLUGIN_VERSION = "0.1.2"; // Naik versi: Penambahan fitur Live Updater (Perubahan teks seketika di layar)
+            public const string PLUGIN_VERSION = "0.1.3"; // Naik versi: Penambahan Sistem Regex Dinamis Otomatis
         }
 
         // Variabel statis agar bisa diakses dari class lain
@@ -48,7 +48,7 @@ namespace AlaskaGoldFeverTranslator
 
             // Menginisialisasi Auto Translator & Live Updater
             Features.AutoTranslator.Initialize();
-            Features.LiveUpdater.Initialize(); // [FITUR BARU]
+            Features.LiveUpdater.Initialize();
 
             // Menginisialisasi Harmony dan menerapkan semua dumper UI standar
             _harmony = new Harmony(PluginInfo.PLUGIN_GUID);
@@ -59,7 +59,7 @@ namespace AlaskaGoldFeverTranslator
             Features.Dumpers.FairyGUIDumper.ApplyPatch(_harmony);
             Patches.TextPatch.ApplyPatch(_harmony); // Ini juga membungkus dumper dan translator TMP
 
-            Logger.LogInfo("Phase 2 update (v0.1.2) initialization complete.");
+            Logger.LogInfo("Phase 2 update (v0.1.3) initialization complete. Regex Engine Active.");
         }
     }
 }

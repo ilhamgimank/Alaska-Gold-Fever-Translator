@@ -1,4 +1,4 @@
-﻿// Managers/TranslationManager.cs (Fitur memuat, menambah, dan menyimpan data terjemahan) (Update: Menambah Hashset TranslatedValues)
+﻿// Managers/TranslationManager.cs (Fitur memuat, menambah, dan menyimpan data terjemahan)
 using System.IO;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
@@ -7,24 +7,27 @@ namespace AlaskaGoldFeverTranslator.Managers
 {
     public static class TranslationManager
     {
-        // Dictionary utama untuk Teks Inggris -> Indonesia
+        // Dictionary utama untuk Teks Statis
         public static Dictionary<string, string> TranslatedStrings { get; private set; }
 
-        // HashSet khusus untuk menyimpan hasil bahasa Indonesia (Agar dumper tahu ini sudah diterjemahkan)
+        // Dictionary khusus untuk Pola Regex
+        public static Dictionary<string, string> TranslatedRegexs { get; private set; }
+
+        // HashSet untuk menyimpan hasil terjemahan agar dikenali dumper
         public static HashSet<string> TranslatedValues { get; private set; }
 
         public static string CurrentLanguage { get; set; } = "Indonesian";
 
-        // Objek pengunci untuk mengamankan proses modifikasi dictionary dari thread AutoTranslator
         private static readonly object _lock = new object();
 
         public static void Initialize()
         {
             TranslatedStrings = new Dictionary<string, string>(System.StringComparer.OrdinalIgnoreCase);
+            TranslatedRegexs = new Dictionary<string, string>();
             TranslatedValues = new HashSet<string>(System.StringComparer.OrdinalIgnoreCase);
             LoadTranslations();
 
-            Main.Logger.LogInfo("Translation Manager initialized (Case-Insensitive mode active).");
+            Main.Logger.LogInfo("Translation Manager initialized with Regex Support.");
         }
 
         public static void LoadTranslations()
@@ -32,6 +35,7 @@ namespace AlaskaGoldFeverTranslator.Managers
             lock (_lock)
             {
                 TranslatedStrings.Clear();
+                TranslatedRegexs.Clear();
                 TranslatedValues.Clear();
             }
 
@@ -39,18 +43,22 @@ namespace AlaskaGoldFeverTranslator.Managers
 
             if (Directory.Exists(languagePath))
             {
-                string[] jsonFiles = Directory.GetFiles(languagePath, "*.json");
-
-                foreach (string file in jsonFiles)
+                // 1. Memuat Teks Statis
+                string stringsPath = Path.Combine(languagePath, "translation_strings.json");
+                if (File.Exists(stringsPath))
                 {
-                    string jsonContent = File.ReadAllText(file, System.Text.Encoding.UTF8);
-                    ParseSimpleJson(jsonContent);
+                    ParseSimpleJson(File.ReadAllText(stringsPath, System.Text.Encoding.UTF8), TranslatedStrings);
+                    SaveTranslationsToFile(); // Bersihkan duplikat case-insensitive
                 }
 
-                Main.Logger.LogInfo($"Loaded {TranslatedStrings.Count} translated strings for language: {CurrentLanguage}.");
+                // 2. Memuat Teks Regex (Dukung penamaan dengan s atau tanpa s)
+                string regexPath1 = Path.Combine(languagePath, "translation_regex.json");
+                string regexPath2 = Path.Combine(languagePath, "translation_regexs.json");
 
-                // [FITUR BARU] Otomatis menyimpan ulang untuk membersihkan dan menghapus teks duplikat di file JSON
-                SaveTranslationsToFile();
+                if (File.Exists(regexPath1)) ParseSimpleJson(File.ReadAllText(regexPath1, System.Text.Encoding.UTF8), TranslatedRegexs);
+                if (File.Exists(regexPath2)) ParseSimpleJson(File.ReadAllText(regexPath2, System.Text.Encoding.UTF8), TranslatedRegexs);
+
+                Main.Logger.LogInfo($"Loaded {TranslatedStrings.Count} static strings and {TranslatedRegexs.Count} regex patterns for language: {CurrentLanguage}.");
             }
             else
             {
@@ -58,14 +66,62 @@ namespace AlaskaGoldFeverTranslator.Managers
             }
         }
 
-        private static void ParseSimpleJson(string json)
+        // Fungsi Cerdas untuk mengartikan teks. Digunakan oleh seluruh Patch in-game!
+        public static bool TryTranslate(string originalText, out string translatedText)
+        {
+            translatedText = null;
+            if (string.IsNullOrEmpty(originalText)) return false;
+
+            lock (_lock)
+            {
+                // 1. Pengecekan Cepat Teks Statis
+                if (TranslatedStrings.TryGetValue(originalText, out translatedText))
+                {
+                    return true;
+                }
+
+                // 2. Pengecekan Pola Regex
+                foreach (var kvp in TranslatedRegexs)
+                {
+                    // Memeriksa apakah teks cocok dengan pola regex (ditambah ^ dan $ agar akurat penuh)
+                    Match match = Regex.Match(originalText, "^" + kvp.Key + "$", RegexOptions.IgnoreCase);
+
+                    if (match.Success)
+                    {
+                        try
+                        {
+                            // Mengumpulkan semua angka yang tertangkap ke dalam array parameter
+                            object[] args = new object[match.Groups.Count - 1];
+                            for (int i = 1; i < match.Groups.Count; i++)
+                            {
+                                args[i - 1] = match.Groups[i].Value;
+                            }
+
+                            // Memasukkan angka asli ke dalam terjemahan format (Contoh: "{0}x Barang")
+                            translatedText = string.Format(kvp.Value, args);
+
+                            // Masukkan ke memori agar Dumper tahu ini sudah diterjemahkan
+                            TranslatedValues.Add(translatedText);
+                            return true;
+                        }
+                        catch (System.Exception ex)
+                        {
+                            Main.Logger.LogError($"[Regex Format Error] Pattern: {kvp.Key} | Error: {ex.Message}");
+                        }
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        private static void ParseSimpleJson(string json, Dictionary<string, string> targetDictionary)
         {
             string pattern = "\"((?:[^\"\\\\]|\\\\.)*)\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)*)\"";
             MatchCollection matches = Regex.Matches(json, pattern);
 
             lock (_lock)
             {
-                int duplicateCount = 0;
                 foreach (Match match in matches)
                 {
                     string originalText = UnescapeFromJson(match.Groups[1].Value);
@@ -73,24 +129,13 @@ namespace AlaskaGoldFeverTranslator.Managers
 
                     if (!string.IsNullOrEmpty(translatedText))
                     {
-                        // Hitung jika teks ini duplikat (Case-Insensitive)
-                        if (TranslatedStrings.ContainsKey(originalText)) duplicateCount++;
-
-                        TranslatedStrings[originalText] = translatedText;
-
-                        // Memasukkan hasil terjemahan ke HashSet agar dikenali sebagai "Bukan teks asli"
+                        targetDictionary[originalText] = translatedText;
                         TranslatedValues.Add(translatedText);
                     }
-                }
-
-                if (duplicateCount > 0)
-                {
-                    Main.Logger.LogInfo($"[TranslationManager] Found and removed {duplicateCount} duplicate entries. JSON file has been cleaned.");
                 }
             }
         }
 
-        // Method yang dipanggil oleh AutoTranslator untuk memasukkan data baru
         public static void AddAndSaveTranslation(string originalText, string translatedText)
         {
             if (string.IsNullOrEmpty(originalText) || string.IsNullOrEmpty(translatedText)) return;
@@ -100,11 +145,9 @@ namespace AlaskaGoldFeverTranslator.Managers
                 TranslatedStrings[originalText] = translatedText;
                 TranslatedValues.Add(translatedText);
             }
-
             SaveTranslationsToFile();
         }
 
-        // Menyimpan data terjemahan ke dalam file translation_strings.json
         private static void SaveTranslationsToFile()
         {
             try
@@ -133,8 +176,6 @@ namespace AlaskaGoldFeverTranslator.Managers
                 }
 
                 sb.AppendLine("}");
-
-                // Wajib menggunakan UTF8 agar karakter Indonesia/Asia tidak rusak
                 File.WriteAllText(filePath, sb.ToString(), System.Text.Encoding.UTF8);
             }
             catch (System.Exception ex)
