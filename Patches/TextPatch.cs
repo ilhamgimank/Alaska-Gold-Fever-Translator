@@ -1,4 +1,4 @@
-﻿// Patches/TextPatch.cs (Fitur untuk menerapkan terjemahan ke teks in-game)
+﻿// Patches/TextPatch.cs (Fitur untuk menerapkan terjemahan ke teks in-game secara instan)
 using HarmonyLib;
 using UnityEngine.UI;
 using UnityEngine;
@@ -8,16 +8,18 @@ using AlaskaGoldFeverTranslator.Features;
 
 namespace AlaskaGoldFeverTranslator.Patches
 {
-    // 1. Patch Setter UGUI (Untuk teks yang berubah di tengah permainan)
+    // 1. Patch Setter UGUI
     [HarmonyPatch(typeof(Text), "text", MethodType.Setter)]
     public static class UGUITextSetterPatch
     {
-        [HarmonyPriority(Priority.Last)]
+        [HarmonyPriority(Priority.First)]
         static void Prefix(ref string value)
         {
             if (string.IsNullOrEmpty(value)) return;
 
-            // [FITUR BARU] Menggunakan TryTranslate agar mendukung pengecekan Regex otomatis!
+            // [FITUR BARU] Menyedot teks SEBELUM diterjemahkan secara real-time! Sangat cepat untuk percakapan.
+            TextDumper.DumpString(value, "UI-Text", false);
+
             if (TranslationManager.TryTranslate(value, out string translatedText))
             {
                 value = translatedText;
@@ -25,7 +27,7 @@ namespace AlaskaGoldFeverTranslator.Patches
         }
     }
 
-    // 2. Patch OnEnable UGUI (Menangkap teks bawaan Inspector/Prefab yang langsung muncul)
+    // 2. Patch OnEnable UGUI 
     [HarmonyPatch(typeof(Text), "OnEnable")]
     public static class UGUITextOnEnablePatch
     {
@@ -42,7 +44,7 @@ namespace AlaskaGoldFeverTranslator.Patches
         }
     }
 
-    // 3. Patch Ekstrim TextMeshPro (Dikelola terpusat oleh ApplyPatch di Main.cs)
+    // 3. Patch Ekstrim TextMeshPro
     public static class TextPatch
     {
         public static void ApplyPatch(Harmony harmony)
@@ -50,7 +52,6 @@ namespace AlaskaGoldFeverTranslator.Patches
             var tmpTextType = AccessTools.TypeByName("TMPro.TMP_Text");
             if (tmpTextType != null)
             {
-                // A. Mencegat Setter Properti (text = "...")
                 var setter = AccessTools.PropertySetter(tmpTextType, "text");
                 if (setter != null)
                 {
@@ -58,7 +59,6 @@ namespace AlaskaGoldFeverTranslator.Patches
                     harmony.Patch(setter, prefix: new HarmonyMethod(prefixSetter));
                 }
 
-                // B. Mencegat Metode SetText(string) yang sering dipakai developer game
                 var setTextMethod = AccessTools.Method(tmpTextType, "SetText", new System.Type[] { typeof(string) });
                 if (setTextMethod != null)
                 {
@@ -68,7 +68,6 @@ namespace AlaskaGoldFeverTranslator.Patches
 
                 var catchMethod = typeof(TextPatch).GetMethod(nameof(CatchPrefabText), BindingFlags.Static | BindingFlags.NonPublic);
 
-                // C. Mencegat semua metode saat objek diciptakan dan dimunculkan ke layar
                 MethodInfo[] lifecycleMethods = {
                     AccessTools.Method(tmpTextType, "Awake"),
                     AccessTools.Method(tmpTextType, "OnEnable"),
@@ -83,7 +82,7 @@ namespace AlaskaGoldFeverTranslator.Patches
                     }
                 }
 
-                Main.Logger.LogInfo("Extreme TMP Translation Patches with Regex support applied successfully.");
+                Main.Logger.LogInfo("Extreme TMP Translation & Real-time Dumper Patches applied successfully.");
             }
             else
             {
@@ -95,6 +94,9 @@ namespace AlaskaGoldFeverTranslator.Patches
         {
             if (string.IsNullOrEmpty(value)) return;
 
+            // [FITUR BARU] Menyedot teks TMP dinamis seketika (Cocok untuk subtitle/percakapan cepat)
+            TextDumper.DumpString(value, "TMP-Text", false);
+
             if (TranslationManager.TryTranslate(value, out string translatedText))
             {
                 value = translatedText;
@@ -104,6 +106,9 @@ namespace AlaskaGoldFeverTranslator.Patches
         private static void SetTextPrefix(ref string __0)
         {
             if (string.IsNullOrEmpty(__0)) return;
+
+            // [FITUR BARU] Menyedot teks TMP dinamis seketika
+            TextDumper.DumpString(__0, "TMP-Text", false);
 
             if (TranslationManager.TryTranslate(__0, out string translatedText))
             {

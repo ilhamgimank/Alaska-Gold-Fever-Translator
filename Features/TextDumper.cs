@@ -1,4 +1,4 @@
-﻿// Features/TextDumper.cs (Fitur dumper teks utama dengan Regex Auto-Detector)
+﻿// Features/TextDumper.cs (Fitur dumper teks utama dengan Regex Auto-Detector & Debouncer)
 using System.IO;
 using System.Collections.Generic;
 using System.Threading.Tasks;
@@ -18,15 +18,21 @@ namespace AlaskaGoldFeverTranslator.Features
 
         private static readonly object _lock = new object();
 
+        // Penanda apakah ada penyimpanan yang sedang mengantre
+        private static bool _savePending = false;
+
         public static void Initialize()
         {
             UntranslatedStringsPath = Path.Combine(FileManager.DumpsPath, "untranslation_strings.json");
             UntranslatedRegexPath = Path.Combine(FileManager.DumpsPath, "untranslation_regexs.json");
 
+            // [FITUR BARU] Memuat riwayat dump lama agar tidak terhapus (Cleaned) saat disave ulang!
+            LoadExistingDumps();
+
             CreateJsonFileIfNotExists(UntranslatedStringsPath, "{\n}");
             CreateJsonFileIfNotExists(UntranslatedRegexPath, "{\n}");
 
-            Main.Logger.LogInfo("Text Dumper initialized and JSON files are ready.");
+            Main.Logger.LogInfo("Text Dumper initialized. Old dumps loaded and preserved safely.");
         }
 
         private static void CreateJsonFileIfNotExists(string path, string defaultContent)
@@ -36,6 +42,41 @@ namespace AlaskaGoldFeverTranslator.Features
                 File.WriteAllText(path, defaultContent);
                 Main.Logger.LogInfo($"Created dump file: {Path.GetFileName(path)}");
             }
+        }
+
+        // Method untuk memuat file JSON lama kembali ke dalam memori HashSet
+        private static void LoadExistingDumps()
+        {
+            if (File.Exists(UntranslatedStringsPath))
+            {
+                ParseJsonToHashSet(File.ReadAllText(UntranslatedStringsPath, System.Text.Encoding.UTF8), _dumpedStrings);
+            }
+            if (File.Exists(UntranslatedRegexPath))
+            {
+                ParseJsonToHashSet(File.ReadAllText(UntranslatedRegexPath, System.Text.Encoding.UTF8), _dumpedRegexs);
+            }
+        }
+
+        private static void ParseJsonToHashSet(string json, HashSet<string> targetSet)
+        {
+            // Regex sederhana untuk menangkap Keys pada JSON
+            string pattern = "\"((?:[^\"\\\\]|\\\\.)*)\"\\s*:";
+            MatchCollection matches = Regex.Matches(json, pattern);
+
+            lock (_lock)
+            {
+                foreach (Match match in matches)
+                {
+                    string key = UnescapeFromJson(match.Groups[1].Value);
+                    if (!string.IsNullOrEmpty(key)) targetSet.Add(key);
+                }
+            }
+        }
+
+        private static string UnescapeFromJson(string s)
+        {
+            if (string.IsNullOrEmpty(s)) return "";
+            return s.Replace("\\\"", "\"").Replace("\\n", "\n").Replace("\\r", "\r").Replace("\\t", "\t").Replace("\\\\", "\\");
         }
 
         private static bool IsSpamText(string text, string uiType)
@@ -82,7 +123,6 @@ namespace AlaskaGoldFeverTranslator.Features
             return false;
         }
 
-        // Method mengamankan karakter khusus regex agar tidak error
         private static string EscapeForRegex(string text)
         {
             string[] specialChars = { "\\", "^", "$", ".", "|", "?", "*", "+", "(", ")", "[", "]", "{", "}" };
@@ -99,24 +139,18 @@ namespace AlaskaGoldFeverTranslator.Features
             if (string.IsNullOrWhiteSpace(text)) return;
             if (IsSpamText(text, uiType)) return;
 
-            // [FITUR BARU] Filter Angka dan Pembuat Regex Otomatis
             bool hasLetter = Regex.IsMatch(text, @"[a-zA-Z]");
             bool hasNumber = Regex.IsMatch(text, @"\d+");
 
-            // 1. Blokir teks matematika/harga murni (Contoh: "$0,00", "+100") agar tidak spam!
             if (hasNumber && !hasLetter) return;
 
-            // 2. Jika mengandung angka dan huruf, jadikan Pola Regex!
             if (hasNumber && hasLetter)
             {
                 string safePattern = EscapeForRegex(text);
-                // Mengubah semua angka yang ada di teks menjadi parameter penangkap "(\d+)"
                 string regexKey = Regex.Replace(safePattern, @"\d+", @"(\d+)");
 
-                // Memastikan teks benar-benar memiliki perubahan (Bukan anomali)
                 if (regexKey != safePattern)
                 {
-                    // Jangan catat jika format regex ini sudah pernah diterjemahkan
                     if (TranslationManager.TranslatedRegexs.ContainsKey(regexKey)) return;
 
                     bool isNewRegex = false;
@@ -131,16 +165,13 @@ namespace AlaskaGoldFeverTranslator.Features
 
                     if (isNewRegex)
                     {
-                        Main.Logger.LogInfo($"[{uiType}][New Auto-Regex] \"{regexKey}\" -> saved to untranslation_regexs.json");
-                        Task.Run(() => SaveDataToFile(UntranslatedRegexPath, _dumpedRegexs));
+                        Main.Logger.LogInfo($"[{uiType}][New Auto-Regex] \"{regexKey}\"");
+                        RequestSave(); // Panggil antrean save!
                     }
-
-                    // BERHENTI DI SINI! Teks berangka tidak boleh masuk ke dumper statis atau Google Translate.
                     return;
                 }
             }
 
-            // 3. Sistem Teks Statis Biasa
             if (TranslationManager.TranslatedStrings.ContainsKey(text)) return;
             if (TranslationManager.TranslatedValues.Contains(text)) return;
 
@@ -156,11 +187,28 @@ namespace AlaskaGoldFeverTranslator.Features
 
             if (isNewStatic)
             {
-                Main.Logger.LogInfo($"[{uiType}][New Static Text Dumped] \"{text}\", added to untranslation_strings.json");
-                Task.Run(() => SaveDataToFile(UntranslatedStringsPath, _dumpedStrings));
-
-                AutoTranslator.AddToQueue(text); // Masukkan ke robot Google Translate
+                Main.Logger.LogInfo($"[{uiType}][New Static Text Dumped] \"{text}\"");
+                RequestSave(); // Panggil antrean save!
+                AutoTranslator.AddToQueue(text);
             }
+        }
+
+        // [FITUR BARU] Debouncer: Mengantrekan proses penyimpanan agar Harddisk tidak dipaksa kerja keras
+        // setiap milidetik saat ada teks percakapan yang berjalan cepat.
+        private static void RequestSave()
+        {
+            if (_savePending) return;
+            _savePending = true;
+
+            Task.Run(async () =>
+            {
+                await Task.Delay(3000); // Menunggu 3 detik penuh. Mengelompokkan semua teks baru.
+
+                SaveDataToFile(UntranslatedStringsPath, _dumpedStrings);
+                SaveDataToFile(UntranslatedRegexPath, _dumpedRegexs);
+
+                _savePending = false;
+            });
         }
 
         private static void SaveDataToFile(string path, HashSet<string> dataSet)

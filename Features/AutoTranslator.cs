@@ -48,8 +48,8 @@ namespace AlaskaGoldFeverTranslator.Features
             {
                 string textToTranslate = _translationQueue.Dequeue();
 
-                // [PENTING] Jeda 1,5 detik untuk menghindari IP diblokir (Error 429 Too Many Requests) oleh Google!
-                await Task.Delay(1500);
+                // [PENTING] Jeda 2 detik untuk menghindari IP diblokir (Error 429 Too Many Requests) oleh Google!
+                await Task.Delay(2000);
 
                 string translatedText = await TranslatorEngine.GoogleTranslate.TranslateAsync(textToTranslate, "en", "id");
 
