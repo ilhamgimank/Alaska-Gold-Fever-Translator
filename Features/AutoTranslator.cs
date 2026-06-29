@@ -57,8 +57,11 @@ namespace AlaskaGoldFeverTranslator.Features
                 {
                     Main.Logger.LogInfo($"[AutoTranslator] Success: \"{textToTranslate}\" -> \"{translatedText}\"");
 
-                    // Masukkan hasil ke dalam memori dan simpan ke file JSON
+                    // 1. Masukkan hasil ke dalam memori dan simpan ke file JSON
                     TranslationManager.AddAndSaveTranslation(textToTranslate, translatedText);
+
+                    // 2. [FITUR BARU] Kirim perintah ke Main Thread untuk langsung mengubah teks di layar detik ini juga!
+                    LiveUpdater.PushUpdate(textToTranslate, translatedText);
                 }
             }
 

@@ -39,28 +39,41 @@ namespace AlaskaGoldFeverTranslator.Features.TranslatorEngine
             }
         }
 
-        // Fungsi untuk mengambil teks terjemahan dari format JSON aneh bawaan Google
+        // Fungsi untuk mengambil teks terjemahan dan membersihkan bug format JSON
         private static string ParseGoogleResponse(string json)
         {
             string translated = "";
 
-            // Format respon Google: [[["Teks Indo","Text Eng",null,null,1],["Teks Indo 2","Text Eng 2",null,null,1]],null,"en"]
-            // Kita gunakan Regex untuk mengambil semua teks terjemahan yang ada di indeks pertama array
-            var matches = Regex.Matches(json, @"\[\""(.*?)\"",""(.*?)\""");
-
-            if (matches.Count > 0)
+            try
             {
-                foreach (Match m in matches)
-                {
-                    translated += m.Groups[1].Value;
-                }
+                // [FITUR BARU] Memotong respon JSON hanya pada bagian array pertama (tempat terjemahan berada)
+                // Ini mencegah Regex menangkap ID Token / Hash metadata yang ada di akhir JSON Google!
+                int stopIndex = json.IndexOf("],null,");
+                if (stopIndex == -1) stopIndex = json.IndexOf("],\""); // Fallback jika respon berbeda
 
-                // Mengembalikan karakter escape ke bentuk normal
-                translated = translated.Replace("\\n", "\n")
-                                       .Replace("\\\"", "\"")
-                                       .Replace("\\r", "\r")
-                                       .Replace("\\t", "\t")
-                                       .Replace("\\\\", "\\");
+                string targetBlock = stopIndex > -1 ? json.Substring(0, stopIndex) : json;
+
+                // Menangkap teks menggunakan Regex
+                var matches = Regex.Matches(targetBlock, @"\[\""(.*?)\"",""(.*?)\""");
+
+                if (matches.Count > 0)
+                {
+                    foreach (Match m in matches)
+                    {
+                        translated += m.Groups[1].Value;
+                    }
+
+                    // [FITUR BARU] Mengubah kode unicode (seperti \u003cbr\u003e) kembali menjadi simbol asli (<br>)
+                    // serta otomatis menangani escape character standar lainnya (\n, \t).
+                    translated = Regex.Unescape(translated);
+
+                    // [FITUR BARU] Lapisan Keamanan Tambahan: Menghapus mutlak 32-karakter Hex Hash (contoh: 8197e9010ff5cd59d89a62790d9829cf)
+                    translated = Regex.Replace(translated, @"[a-f, 0-9]{32}", "");
+                }
+            }
+            catch (Exception ex)
+            {
+                Main.Logger.LogError($"[GoogleTranslate] Parse Error: {ex.Message}");
             }
 
             return translated;
