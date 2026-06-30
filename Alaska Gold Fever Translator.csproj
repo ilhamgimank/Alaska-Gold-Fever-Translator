@@ -138,7 +138,9 @@
     <Compile Include="Features\Translator Engine\GoogleTranslate.cs" />
     <Compile Include="Main.cs" />
     <Compile Include="Managers\FileManager.cs" />
+    <Compile Include="Managers\TextureManager.cs" />
     <Compile Include="Managers\TranslationManager.cs" />
+    <Compile Include="Patches\ImagePatch.cs" />
     <Compile Include="Patches\TextPatch.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>

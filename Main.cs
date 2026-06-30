@@ -15,7 +15,7 @@ namespace AlaskaGoldFeverTranslator
         {
             public const string PLUGIN_GUID = "com.ilhamgimank.alaskagoldfever.translator";
             public const string PLUGIN_NAME = "Alaska Gold Fever Translator";
-            public const string PLUGIN_VERSION = "0.1.4"; // Naik versi: Optimasi Dumper & Data Retention
+            public const string PLUGIN_VERSION = "0.2.0"; // Naik versi besar: Fase 3 (Texture Replacer)
         }
 
         // Variabel statis agar bisa diakses dari class lain
@@ -39,9 +39,10 @@ namespace AlaskaGoldFeverTranslator
             // Memanggil File Manager untuk membuat struktur folder
             Managers.FileManager.Initialize();
 
-            // Memanggil Text Dumper dan Translation Manager
+            // Memanggil Text Dumper, Translation Manager, dan TEXTURE MANAGER
             Features.TextDumper.Initialize();
             Managers.TranslationManager.Initialize();
+            Managers.TextureManager.Initialize(); // Inisialisasi pengelola gambar
 
             // Memanggil Scene Scanner
             Features.SceneScanner.Initialize();
@@ -55,11 +56,14 @@ namespace AlaskaGoldFeverTranslator
             _harmony.PatchAll();
             Logger.LogInfo("Harmony successfully patched automatic UI dumpers.");
 
-            // Menerapkan patch manual (Dinamis) untuk library UI eksternal
+            // Menerapkan patch manual (Dinamis)
             Features.Dumpers.FairyGUIDumper.ApplyPatch(_harmony);
-            Patches.TextPatch.ApplyPatch(_harmony); // Membungkus dumper dan translator TMP
+            Patches.TextPatch.ApplyPatch(_harmony);
 
-            Logger.LogInfo("Phase 2 update (v0.1.4) initialization complete. Dumper Optimization Active.");
+            // Menerapkan Patch Gambar (Fase 3)
+            Patches.ImagePatch.ApplyPatch(_harmony);
+
+            Logger.LogInfo("Phase 3 update (v0.2.0) initialization complete. Texture Engine Active.");
         }
     }
 }
