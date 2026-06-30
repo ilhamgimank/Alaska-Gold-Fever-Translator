@@ -120,7 +120,9 @@ namespace AlaskaGoldFeverTranslator.Patches
         {
             if (__instance == null) return;
 
-            var prop = AccessTools.Property(__instance.GetType(), "text");
+            // Menggunakan C# Reflection standar (GetProperty) alih-alih AccessTools
+            // untuk mencegah HarmonyX meneriakkan [Warning] saat objek tidak punya teks.
+            var prop = __instance.GetType().GetProperty("text");
             if (prop != null)
             {
                 string originalText = prop.GetValue(__instance, null) as string;

@@ -46,7 +46,7 @@ namespace AlaskaGoldFeverTranslator.Features.TranslatorEngine
 
             try
             {
-                // [FITUR BARU] Memotong respon JSON hanya pada bagian array pertama (tempat terjemahan berada)
+                // Memotong respon JSON hanya pada bagian array pertama (tempat terjemahan berada)
                 // Ini mencegah Regex menangkap ID Token / Hash metadata yang ada di akhir JSON Google!
                 int stopIndex = json.IndexOf("],null,");
                 if (stopIndex == -1) stopIndex = json.IndexOf("],\""); // Fallback jika respon berbeda
@@ -63,12 +63,17 @@ namespace AlaskaGoldFeverTranslator.Features.TranslatorEngine
                         translated += m.Groups[1].Value;
                     }
 
-                    // [FITUR BARU] Mengubah kode unicode (seperti \u003cbr\u003e) kembali menjadi simbol asli (<br>)
+                    // Mengubah kode unicode (seperti \u003cbr\u003e) kembali menjadi simbol asli (<br>)
                     // serta otomatis menangani escape character standar lainnya (\n, \t).
                     translated = Regex.Unescape(translated);
 
-                    // [FITUR BARU] Lapisan Keamanan Tambahan: Menghapus mutlak 32-karakter Hex Hash (contoh: 8197e9010ff5cd59d89a62790d9829cf)
-                    translated = Regex.Replace(translated, @"[a-f, 0-9]{32}", "");
+                    // [PERBAIKAN BUG v0.1.5] Penghapusan Absolut Hash Artifact API.
+                    // Menggunakan metode Replace langsung agar huruf terakhir dari terjemahan 
+                    // (seperti huruf 'a' pada "berbahaya") tidak ikut terpotong oleh Regex Hex.
+                    translated = translated.Replace("8197e9010ff5cd59d89a62790d9829cf", "");
+
+                    // Membersihkan sisa spasi kosong di awal/akhir jika ada
+                    translated = translated.Trim();
                 }
             }
             catch (Exception ex)

@@ -1,4 +1,4 @@
-﻿// Features/TextDumper.cs (Fitur dumper teks utama dengan Regex Auto-Detector & Debouncer)
+﻿// Features/TextDumper.cs (Fitur dumper teks utama dengan Regex Auto-Formatter & Debouncer)
 using System.IO;
 using System.Collections.Generic;
 using System.Threading.Tasks;
@@ -26,7 +26,7 @@ namespace AlaskaGoldFeverTranslator.Features
             UntranslatedStringsPath = Path.Combine(FileManager.DumpsPath, "untranslation_strings.json");
             UntranslatedRegexPath = Path.Combine(FileManager.DumpsPath, "untranslation_regexs.json");
 
-            // [FITUR BARU] Memuat riwayat dump lama agar tidak terhapus (Cleaned) saat disave ulang!
+            // Memuat riwayat dump lama agar tidak terhapus saat disave ulang
             LoadExistingDumps();
 
             CreateJsonFileIfNotExists(UntranslatedStringsPath, "{\n}");
@@ -142,8 +142,10 @@ namespace AlaskaGoldFeverTranslator.Features
             bool hasLetter = Regex.IsMatch(text, @"[a-zA-Z]");
             bool hasNumber = Regex.IsMatch(text, @"\d+");
 
+            // Membuang teks yang HANYA berisi angka murni (tanpa huruf) seperti "100" atau "$0.00"
             if (hasNumber && !hasLetter) return;
 
+            // Logika Dumper Regex
             if (hasNumber && hasLetter)
             {
                 string safePattern = EscapeForRegex(text);
@@ -166,12 +168,16 @@ namespace AlaskaGoldFeverTranslator.Features
                     if (isNewRegex)
                     {
                         Main.Logger.LogInfo($"[{uiType}][New Auto-Regex] \"{regexKey}\"");
-                        RequestSave(); // Panggil antrean save!
+                        RequestSave();
+
+                        // [FITUR BARU] Mengirim teks aslinya ke Auto Translator beserta bendera penanda Regex!
+                        AutoTranslator.AddToQueue(text, true, regexKey);
                     }
                     return;
                 }
             }
 
+            // Mencegah teks yang sudah ada masuk dumper
             if (TranslationManager.TranslatedStrings.ContainsKey(text)) return;
             if (TranslationManager.TranslatedValues.Contains(text)) return;
 
@@ -188,13 +194,12 @@ namespace AlaskaGoldFeverTranslator.Features
             if (isNewStatic)
             {
                 Main.Logger.LogInfo($"[{uiType}][New Static Text Dumped] \"{text}\"");
-                RequestSave(); // Panggil antrean save!
+                RequestSave();
                 AutoTranslator.AddToQueue(text);
             }
         }
 
-        // [FITUR BARU] Debouncer: Mengantrekan proses penyimpanan agar Harddisk tidak dipaksa kerja keras
-        // setiap milidetik saat ada teks percakapan yang berjalan cepat.
+        // Debouncer: Mengantrekan proses penyimpanan agar Harddisk tidak dipaksa kerja keras
         private static void RequestSave()
         {
             if (_savePending) return;
@@ -202,16 +207,16 @@ namespace AlaskaGoldFeverTranslator.Features
 
             Task.Run(async () =>
             {
-                await Task.Delay(3000); // Menunggu 3 detik penuh. Mengelompokkan semua teks baru.
+                await Task.Delay(3000); // Menunggu 3 detik penuh
 
-                SaveDataToFile(UntranslatedStringsPath, _dumpedStrings);
-                SaveDataToFile(UntranslatedRegexPath, _dumpedRegexs);
+                SaveDataToFile(UntranslatedStringsPath, _dumpedStrings, false);
+                SaveDataToFile(UntranslatedRegexPath, _dumpedRegexs, true); // Mengirim flag isRegex = true
 
                 _savePending = false;
             });
         }
 
-        private static void SaveDataToFile(string path, HashSet<string> dataSet)
+        private static void SaveDataToFile(string path, HashSet<string> dataSet, bool isRegex)
         {
             try
             {
@@ -228,8 +233,40 @@ namespace AlaskaGoldFeverTranslator.Features
 
                 for (int i = 0; i < currentStrings.Length; i++)
                 {
-                    string escapedKey = EscapeForJson(currentStrings[i]);
-                    sb.Append($"  \"{escapedKey}\": \"{escapedKey}\"");
+                    string rawKey = currentStrings[i];
+                    string escapedKey = EscapeForJson(rawKey);
+                    string escapedValue;
+
+                    // [FITUR BARU] Auto-Formatter untuk Value Regex
+                    if (isRegex)
+                    {
+                        string formatValue = rawKey;
+                        int counter = 0;
+
+                        // 1. Mengubah (\d+) menjadi {0}, {1}, dst.
+                        string target = @"(\d+)";
+                        int index;
+                        while ((index = formatValue.IndexOf(target)) != -1)
+                        {
+                            formatValue = formatValue.Remove(index, target.Length).Insert(index, "{" + counter + "}");
+                            counter++;
+                        }
+
+                        // 2. Membersihkan pelarian Regex (Unescape) seperti \* menjadi *
+                        string[] specialChars = { "\\", "^", "$", ".", "|", "?", "*", "+", "(", ")", "[", "]", "{", "}" };
+                        foreach (var ch in specialChars)
+                        {
+                            formatValue = formatValue.Replace("\\" + ch, ch);
+                        }
+
+                        escapedValue = EscapeForJson(formatValue);
+                    }
+                    else
+                    {
+                        escapedValue = escapedKey;
+                    }
+
+                    sb.Append($"  \"{escapedKey}\": \"{escapedValue}\"");
 
                     if (i < currentStrings.Length - 1) sb.AppendLine(",");
                     else sb.AppendLine();

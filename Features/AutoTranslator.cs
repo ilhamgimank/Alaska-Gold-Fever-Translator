@@ -1,67 +1,82 @@
 ﻿// Features/AutoTranslator.cs (Sistem antrean penerjemahan otomatis di latar belakang)
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using System.Text.RegularExpressions;
 using AlaskaGoldFeverTranslator.Managers;
 
 namespace AlaskaGoldFeverTranslator.Features
 {
     public static class AutoTranslator
     {
-        // Antrean teks yang menunggu untuk diterjemahkan
-#pragma warning disable
-        private static Queue<string> _translationQueue = new Queue<string>();
+        // Struktur data untuk menyimpan tugas terjemahan
+        private struct TranslationTask
+        {
+            public string RawText;
+            public bool IsRegex;
+            public string RegexKey;
+        }
 
-        // Status apakah mesin sedang bekerja agar tidak terjadi double-task
+        // Antrean tugas terjemahan
+#pragma warning disable
+        private static Queue<TranslationTask> _translationQueue = new Queue<TranslationTask>();
         private static bool _isTranslating = false;
 
         public static void Initialize()
         {
-            Main.Logger.LogInfo("Auto Translator queue system initialized.");
+            Main.Logger.LogInfo("Auto Translator queue system initialized (Regex Supported).");
         }
 
-        // Method ini dipanggil oleh TextDumper saat menemukan teks baru
-        public static void AddToQueue(string originalText)
+        // Method ini dipanggil oleh TextDumper
+        public static void AddToQueue(string originalText, bool isRegex = false, string regexKey = null)
         {
-            // Jangan terjemahkan ulang jika teks sudah ada di kamus memori
+            // Jangan masukkan jika teks sudah ada di dalam antrean memori
             if (TranslationManager.TranslatedStrings.ContainsKey(originalText)) return;
 
-            // Jangan masukkan jika teks sudah ada di dalam antrean
-            if (_translationQueue.Contains(originalText)) return;
+            _translationQueue.Enqueue(new TranslationTask { RawText = originalText, IsRegex = isRegex, RegexKey = regexKey });
+            Main.Logger.LogInfo($"[AutoTranslator] Added to queue: \"{originalText}\" (Regex: {isRegex})");
 
-            _translationQueue.Enqueue(originalText);
-            Main.Logger.LogInfo($"[AutoTranslator] Added to queue: \"{originalText}\"");
-
-            // Mulai mesin penerjemah jika belum menyala
             if (!_isTranslating)
             {
                 Task.Run(ProcessQueueAsync);
             }
         }
 
-        // Proses pekerja latar belakang (Worker Thread)
+        // Pekerja latar belakang
         private static async Task ProcessQueueAsync()
         {
             _isTranslating = true;
 
-            // Terus bekerja sampai antrean kosong
             while (_translationQueue.Count > 0)
             {
-                string textToTranslate = _translationQueue.Dequeue();
+                TranslationTask task = _translationQueue.Dequeue();
 
-                // [PENTING] Jeda 2 detik untuk menghindari IP diblokir (Error 429 Too Many Requests) oleh Google!
+                // Jeda 2 detik untuk menghindari IP diblokir Google
                 await Task.Delay(2000);
 
-                string translatedText = await TranslatorEngine.GoogleTranslate.TranslateAsync(textToTranslate, "en", "id");
+                // Menerjemahkan teks MENTAH (yang masih ada angkanya) secara natural
+                string translatedText = await TranslatorEngine.GoogleTranslate.TranslateAsync(task.RawText, "en", "id");
 
                 if (!string.IsNullOrEmpty(translatedText))
                 {
-                    Main.Logger.LogInfo($"[AutoTranslator] Success: \"{textToTranslate}\" -> \"{translatedText}\"");
+                    Main.Logger.LogInfo($"[AutoTranslator] Success: \"{task.RawText}\" -> \"{translatedText}\"");
 
-                    // 1. Masukkan hasil ke dalam memori dan simpan ke file JSON
-                    TranslationManager.AddAndSaveTranslation(textToTranslate, translatedText);
+                    if (task.IsRegex)
+                    {
+                        // Menyulap angka di terjemahan menjadi parameter penempatan {0}, {1}
+                        string formatValue = translatedText;
+                        int counter = 0;
 
-                    // 2. [FITUR BARU] Kirim perintah ke Main Thread untuk langsung mengubah teks di layar detik ini juga!
-                    LiveUpdater.PushUpdate(textToTranslate, translatedText);
+                        // Regex ini akan mengganti semua angka murni dengan urutan parameter {0}, {1}, dst.
+                        formatValue = Regex.Replace(formatValue, @"\d+", match => "{" + (counter++) + "}");
+
+                        TranslationManager.AddAndSaveRegexTranslation(task.RegexKey, formatValue);
+                        LiveUpdater.PushUpdate(task.RawText, translatedText);
+                    }
+                    else
+                    {
+                        TranslationManager.AddAndSaveTranslation(task.RawText, translatedText);
+                        LiveUpdater.PushUpdate(task.RawText, translatedText);
+                    }
                 }
             }
 

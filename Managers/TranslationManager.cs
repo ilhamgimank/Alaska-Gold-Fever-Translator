@@ -148,6 +148,18 @@ namespace AlaskaGoldFeverTranslator.Managers
             SaveTranslationsToFile();
         }
 
+        // [FITUR BARU] Fungsi untuk menyimpan hasil format Regex otomatis dari Auto Translator
+        public static void AddAndSaveRegexTranslation(string regexKey, string translatedFormat)
+        {
+            if (string.IsNullOrEmpty(regexKey) || string.IsNullOrEmpty(translatedFormat)) return;
+
+            lock (_lock)
+            {
+                TranslatedRegexs[regexKey] = translatedFormat;
+            }
+            SaveRegexTranslationsToFile();
+        }
+
         private static void SaveTranslationsToFile()
         {
             try
@@ -181,6 +193,43 @@ namespace AlaskaGoldFeverTranslator.Managers
             catch (System.Exception ex)
             {
                 Main.Logger.LogError($"[TranslationManager] Error saving JSON: {ex.Message}");
+            }
+        }
+
+        // [FITUR BARU] Fungsi menulis ke translation_regexs.json
+        private static void SaveRegexTranslationsToFile()
+        {
+            try
+            {
+                string languagePath = Path.Combine(FileManager.LocalizationPath, CurrentLanguage, "Strings");
+                string filePath = Path.Combine(languagePath, "translation_regexs.json");
+
+                var sb = new System.Text.StringBuilder();
+                sb.AppendLine("{");
+
+                lock (_lock)
+                {
+                    int count = 0;
+                    foreach (var kvp in TranslatedRegexs)
+                    {
+                        string escapedKey = EscapeForJson(kvp.Key);
+                        string escapedValue = EscapeForJson(kvp.Value);
+
+                        sb.Append($"  \"{escapedKey}\": \"{escapedValue}\"");
+
+                        if (count < TranslatedRegexs.Count - 1) sb.AppendLine(",");
+                        else sb.AppendLine();
+
+                        count++;
+                    }
+                }
+
+                sb.AppendLine("}");
+                File.WriteAllText(filePath, sb.ToString(), System.Text.Encoding.UTF8);
+            }
+            catch (System.Exception ex)
+            {
+                Main.Logger.LogError($"[TranslationManager] Error saving Regex JSON: {ex.Message}");
             }
         }
 

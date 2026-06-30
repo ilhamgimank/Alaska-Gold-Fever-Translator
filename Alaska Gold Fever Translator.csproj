@@ -67,10 +67,6 @@
       <HintPath>..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\Alaska Gold Fever\Alaska Gold Fever_Data\Managed\UnityEngine.HierarchyCoreModule.dll</HintPath>
       <Private>False</Private>
     </Reference>
-    <Reference Include="UnityEngine.ImageConversionModule">
-      <HintPath>..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\Alaska Gold Fever\Alaska Gold Fever_Data\Managed\UnityEngine.ImageConversionModule.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
     <Reference Include="UnityEngine.IMGUIModule">
       <HintPath>..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\Alaska Gold Fever\Alaska Gold Fever_Data\Managed\UnityEngine.IMGUIModule.dll</HintPath>
       <Private>False</Private>

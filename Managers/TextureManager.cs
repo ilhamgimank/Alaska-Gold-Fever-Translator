@@ -45,6 +45,42 @@ namespace AlaskaGoldFeverTranslator.Managers
             }
         }
 
+        // ====================================================================================
+        // TRIK BYPASS JEDI (REFLECTION)
+        // Mengeksekusi LoadImage dan EncodeToPNG secara dinamis dari memori Unity 
+        // agar Visual Studio (.NET 4.7.2) tidak rewel soal masalah .NET Standard 2.1 (CS1705)
+        // ====================================================================================
+        private static bool InvokeLoadImage(Texture2D tex, byte[] data)
+        {
+            try
+            {
+                var type = System.Type.GetType("UnityEngine.ImageConversion, UnityEngine.ImageConversionModule");
+                if (type != null)
+                {
+                    var method = type.GetMethod("LoadImage", new System.Type[] { typeof(Texture2D), typeof(byte[]) });
+                    if (method != null) return (bool)method.Invoke(null, new object[] { tex, data });
+                }
+            }
+            catch (System.Exception ex) { Main.Logger.LogError("[Bypass] LoadImage Error: " + ex.Message); }
+            return false;
+        }
+
+        private static byte[] InvokeEncodeToPNG(Texture2D tex)
+        {
+            try
+            {
+                var type = System.Type.GetType("UnityEngine.ImageConversion, UnityEngine.ImageConversionModule");
+                if (type != null)
+                {
+                    var method = type.GetMethod("EncodeToPNG", new System.Type[] { typeof(Texture2D) });
+                    if (method != null) return (byte[])method.Invoke(null, new object[] { tex });
+                }
+            }
+            catch (System.Exception ex) { Main.Logger.LogError("[Bypass] EncodeToPNG Error: " + ex.Message); }
+            return null;
+        }
+        // ====================================================================================
+
         // Fungsi magis untuk mengubah file .png lokal di harddisk menjadi Objek Sprite Unity
         private static Sprite LoadSpriteFromFile(string path)
         {
@@ -54,8 +90,8 @@ namespace AlaskaGoldFeverTranslator.Managers
                 // Membuat kanvas tekstur kosong
                 Texture2D tex = new Texture2D(2, 2, TextureFormat.RGBA32, false);
 
-                // Unity otomatis akan mengubah ukuran kanvas sesuai resolusi PNG
-                if (tex.LoadImage(fileData))
+                // Menggunakan fungsi Bypass untuk LoadImage
+                if (InvokeLoadImage(tex, fileData))
                 {
                     tex.filterMode = FilterMode.Bilinear;
                     tex.wrapMode = TextureWrapMode.Clamp;
@@ -118,12 +154,16 @@ namespace AlaskaGoldFeverTranslator.Managers
                 RenderTexture.active = previous;
                 RenderTexture.ReleaseTemporary(tmp);
 
-                // Ubah menjadi PNG biner
-                byte[] bytes = myTexture2D.EncodeToPNG();
-                File.WriteAllBytes(outPath, bytes);
-                Object.Destroy(myTexture2D); // Cegah Memory Leak
+                // Ubah menjadi PNG biner menggunakan Bypass
+                byte[] bytes = InvokeEncodeToPNG(myTexture2D);
 
-                Main.Logger.LogDebug($"[TextureDumper] Dumped: {cleanName}.png");
+                if (bytes != null)
+                {
+                    File.WriteAllBytes(outPath, bytes);
+                    Main.Logger.LogDebug($"[TextureDumper] Dumped: {cleanName}.png");
+                }
+
+                Object.Destroy(myTexture2D); // Cegah Memory Leak
             }
             catch (System.Exception ex)
             {
