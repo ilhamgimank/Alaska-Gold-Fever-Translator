@@ -88,6 +88,9 @@ namespace AlaskaGoldFeverTranslator.Features
             // Ini agar teks misi seperti "(0/1)" tetap bisa lolos dumper.
             if (text.Contains("/") && !Regex.IsMatch(text, @"[a-zA-Z]")) return true;
 
+            // [ANTI-BOUNCING MATA UANG] Mencegah hasil konversi uang (Rp) dideteksi sebagai bahasa Inggris baru!
+            if (text.Contains("Rp.") && Regex.IsMatch(text, @"Rp\.\s*\d+")) return true;
+
             if (System.Text.RegularExpressions.Regex.IsMatch(text, @"^Slot\s+\d+$")) return true;
             if (text.Length <= 1 && char.IsDigit(text[0])) return true;
 

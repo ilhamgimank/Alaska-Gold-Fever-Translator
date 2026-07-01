@@ -23,7 +23,7 @@ namespace AlaskaGoldFeverTranslator.Features
                 {
                     double idrAmount = usdAmount * USD_TO_IDR_RATE;
                     // Format ke standar Indonesia (contoh: Rp 17.950.000)
-                    return "Rp " + idrAmount.ToString("N0").Replace(",", ".");
+                    return "Rp. " + idrAmount.ToString("N0").Replace(",", ".");
                 }
                 return match.Value; // Jika gagal di-parse, biarkan teksnya seperti semula
             });
