@@ -44,7 +44,7 @@ namespace AlaskaGoldFeverTranslator.Managers
 
             // Membuat file JSON kosongan di dalam folder Strings sesuai instruksi Phase 1b
             string translationStringsPath = Path.Combine(indonesianStringsPath, "translation_strings.json");
-            string translationRegexPath = Path.Combine(indonesianStringsPath, "translation_regex.json");
+            string translationRegexPath = Path.Combine(indonesianStringsPath, "translation_regexs.json");
 
             CreateFileIfNotExists(translationStringsPath, "{}");
             CreateFileIfNotExists(translationRegexPath, "{}");

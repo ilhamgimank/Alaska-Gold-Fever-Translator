@@ -58,8 +58,6 @@ namespace AlaskaGoldFeverTranslator.Features
 
                 if (!string.IsNullOrEmpty(translatedText))
                 {
-                    Main.Logger.LogInfo($"[AutoTranslator] Success: \"{task.RawText}\" -> \"{translatedText}\"");
-
                     if (task.IsRegex)
                     {
                         // Menyulap angka di terjemahan menjadi parameter penempatan {0}, {1}
@@ -71,11 +69,17 @@ namespace AlaskaGoldFeverTranslator.Features
 
                         TranslationManager.AddAndSaveRegexTranslation(task.RegexKey, formatValue);
                         LiveUpdater.PushUpdate(task.RawText, translatedText);
+
+                        // [PERBAIKAN UX] Menampilkan log hasil format Regex yang sesungguhnya!
+                        Main.Logger.LogInfo($"[AutoTranslator] Regex Saved: \"{task.RegexKey}\" -> \"{formatValue}\"");
                     }
                     else
                     {
                         TranslationManager.AddAndSaveTranslation(task.RawText, translatedText);
                         LiveUpdater.PushUpdate(task.RawText, translatedText);
+
+                        // Log untuk teks statis biasa
+                        Main.Logger.LogInfo($"[AutoTranslator] Static Success: \"{task.RawText}\" -> \"{translatedText}\"");
                     }
                 }
             }

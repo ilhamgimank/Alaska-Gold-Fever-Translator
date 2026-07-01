@@ -46,19 +46,23 @@ namespace AlaskaGoldFeverTranslator.Managers
         }
 
         // ====================================================================================
-        // TRIK BYPASS JEDI (REFLECTION)
+        // TRIK BYPASS JEDI (REFLECTION) v0.2.6
         // Mengeksekusi LoadImage dan EncodeToPNG secara dinamis dari memori Unity 
-        // agar Visual Studio (.NET 4.7.2) tidak rewel soal masalah .NET Standard 2.1 (CS1705)
+        // menggunakan HarmonyLib.AccessTools agar 100% akurat menemukan classnya!
         // ====================================================================================
         private static bool InvokeLoadImage(Texture2D tex, byte[] data)
         {
             try
             {
-                var type = System.Type.GetType("UnityEngine.ImageConversion, UnityEngine.ImageConversionModule");
+                var type = HarmonyLib.AccessTools.TypeByName("UnityEngine.ImageConversion");
                 if (type != null)
                 {
-                    var method = type.GetMethod("LoadImage", new System.Type[] { typeof(Texture2D), typeof(byte[]) });
+                    var method = HarmonyLib.AccessTools.Method(type, "LoadImage", new System.Type[] { typeof(Texture2D), typeof(byte[]) });
                     if (method != null) return (bool)method.Invoke(null, new object[] { tex, data });
+                }
+                else
+                {
+                    Main.Logger.LogError("[Bypass] Failed to find UnityEngine.ImageConversion class!");
                 }
             }
             catch (System.Exception ex) { Main.Logger.LogError("[Bypass] LoadImage Error: " + ex.Message); }
@@ -69,11 +73,15 @@ namespace AlaskaGoldFeverTranslator.Managers
         {
             try
             {
-                var type = System.Type.GetType("UnityEngine.ImageConversion, UnityEngine.ImageConversionModule");
+                var type = HarmonyLib.AccessTools.TypeByName("UnityEngine.ImageConversion");
                 if (type != null)
                 {
-                    var method = type.GetMethod("EncodeToPNG", new System.Type[] { typeof(Texture2D) });
+                    var method = HarmonyLib.AccessTools.Method(type, "EncodeToPNG", new System.Type[] { typeof(Texture2D) });
                     if (method != null) return (byte[])method.Invoke(null, new object[] { tex });
+                }
+                else
+                {
+                    Main.Logger.LogError("[Bypass] Failed to find UnityEngine.ImageConversion class!");
                 }
             }
             catch (System.Exception ex) { Main.Logger.LogError("[Bypass] EncodeToPNG Error: " + ex.Message); }
@@ -141,13 +149,15 @@ namespace AlaskaGoldFeverTranslator.Managers
             // (Karena kebanyakan gambar aslinya disetting "Not Readable" oleh developer game)
             try
             {
-                RenderTexture tmp = RenderTexture.GetTemporary(sprite.texture.width, sprite.texture.height, 0, RenderTextureFormat.Default, RenderTextureReadWrite.Linear);
+                // [PERBAIKAN] Gunakan ARGB32 agar background transparan (Alpha) pada gambar UI tidak berubah jadi hitam!
+                RenderTexture tmp = RenderTexture.GetTemporary(sprite.texture.width, sprite.texture.height, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Linear);
                 Graphics.Blit(sprite.texture, tmp);
 
                 RenderTexture previous = RenderTexture.active;
                 RenderTexture.active = tmp;
 
-                Texture2D myTexture2D = new Texture2D(sprite.texture.width, sprite.texture.height);
+                // [PERBAIKAN] Format Texture2D juga harus mendukung transparansi (RGBA32)
+                Texture2D myTexture2D = new Texture2D(sprite.texture.width, sprite.texture.height, TextureFormat.RGBA32, false);
                 myTexture2D.ReadPixels(new Rect(0, 0, tmp.width, tmp.height), 0, 0);
                 myTexture2D.Apply();
 
@@ -160,7 +170,7 @@ namespace AlaskaGoldFeverTranslator.Managers
                 if (bytes != null)
                 {
                     File.WriteAllBytes(outPath, bytes);
-                    Main.Logger.LogDebug($"[TextureDumper] Dumped: {cleanName}.png");
+                    Main.Logger.LogInfo($"[Texture Dumped] \"{cleanName}.png\" saved to [Default Textures]");
                 }
 
                 Object.Destroy(myTexture2D); // Cegah Memory Leak

@@ -83,7 +83,11 @@ namespace AlaskaGoldFeverTranslator.Features
         {
             if (string.IsNullOrWhiteSpace(text)) return true;
             if (text.Contains("Lorem ipsum") || text.Contains("Lorem Ipsum") || text.StartsWith("Lorem")) return true;
-            if (text.Contains("/")) return true;
+
+            // [PERBAIKAN SENSITIVITAS] Jangan langsung memblokir karakter "/" jika ada huruf alfabet di dalam kalimat!
+            // Ini agar teks misi seperti "(0/1)" tetap bisa lolos dumper.
+            if (text.Contains("/") && !Regex.IsMatch(text, @"[a-zA-Z]")) return true;
+
             if (System.Text.RegularExpressions.Regex.IsMatch(text, @"^Slot\s+\d+$")) return true;
             if (text.Length <= 1 && char.IsDigit(text[0])) return true;
 
@@ -139,6 +143,10 @@ namespace AlaskaGoldFeverTranslator.Features
             if (string.IsNullOrWhiteSpace(text)) return;
             if (IsSpamText(text, uiType)) return;
 
+            // [ANTI-BOUNCING KRUSIAL] Mencegah teks yang sudah berwujud terjemahan Indonesia masuk ke Dumper!
+            if (TranslationManager.TranslatedStrings.ContainsKey(text)) return;
+            if (TranslationManager.TranslatedValues.Contains(text)) return;
+
             bool hasLetter = Regex.IsMatch(text, @"[a-zA-Z]");
             bool hasNumber = Regex.IsMatch(text, @"\d+");
 
@@ -155,6 +163,9 @@ namespace AlaskaGoldFeverTranslator.Features
                 {
                     if (TranslationManager.TranslatedRegexs.ContainsKey(regexKey)) return;
 
+                    // [ANTI-BOUNCING REGEX] Cegah pola dinamis bahasa Indonesia terekam ulang menjadi Spam!
+                    if (TranslationManager.TranslatedRegexValuesAsPatterns.Contains(regexKey)) return;
+
                     bool isNewRegex = false;
                     lock (_lock)
                     {
@@ -170,17 +181,14 @@ namespace AlaskaGoldFeverTranslator.Features
                         Main.Logger.LogInfo($"[{uiType}][New Auto-Regex] \"{regexKey}\"");
                         RequestSave();
 
-                        // [FITUR BARU] Mengirim teks aslinya ke Auto Translator beserta bendera penanda Regex!
+                        // Mengirim teks aslinya ke Auto Translator beserta bendera penanda Regex
                         AutoTranslator.AddToQueue(text, true, regexKey);
                     }
                     return;
                 }
             }
 
-            // Mencegah teks yang sudah ada masuk dumper
-            if (TranslationManager.TranslatedStrings.ContainsKey(text)) return;
-            if (TranslationManager.TranslatedValues.Contains(text)) return;
-
+            // Logika Dumper Statis
             bool isNewStatic = false;
             lock (_lock)
             {

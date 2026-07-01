@@ -15,7 +15,7 @@ namespace AlaskaGoldFeverTranslator
         {
             public const string PLUGIN_GUID = "com.ilhamgimank.alaskagoldfever.translator";
             public const string PLUGIN_NAME = "Alaska Gold Fever Translator";
-            public const string PLUGIN_VERSION = "0.1.7"; // Update Auto-Translate Regex
+            public const string PLUGIN_VERSION = "0.2.8"; // Auto Currency Converter & Texture Dumper Fixes
         }
 
         // Variabel statis agar bisa diakses dari class lain
@@ -43,6 +43,9 @@ namespace AlaskaGoldFeverTranslator
             Features.TextDumper.Initialize();
             Managers.TranslationManager.Initialize();
 
+            // [PERBAIKAN] Menyalakan Texture Manager yang sempat terlupakan!
+            Managers.TextureManager.Initialize();
+
             // Memanggil Scene Scanner
             Features.SceneScanner.Initialize();
 
@@ -59,7 +62,10 @@ namespace AlaskaGoldFeverTranslator
             Features.Dumpers.FairyGUIDumper.ApplyPatch(_harmony);
             Patches.TextPatch.ApplyPatch(_harmony);
 
-            Logger.LogInfo("Update v0.1.5 initialization complete. Auto-Translator Clean Patch Active.");
+            // [PERBAIKAN] Menyalakan Pencegat Gambar (Image Patch) ke dalam game!
+            Patches.ImagePatch.ApplyPatch(_harmony);
+
+            Logger.LogInfo("Update v0.2.8 initialization complete. All Systems Active.");
         }
     }
 }

@@ -3,6 +3,7 @@ using HarmonyLib;
 using UnityEngine.UI;
 using UnityEngine;
 using System.Reflection;
+using System.Text.RegularExpressions;
 using AlaskaGoldFeverTranslator.Managers;
 using AlaskaGoldFeverTranslator.Features;
 
@@ -20,10 +21,15 @@ namespace AlaskaGoldFeverTranslator.Patches
             // [FITUR BARU] Menyedot teks SEBELUM diterjemahkan secara real-time! Sangat cepat untuk percakapan.
             TextDumper.DumpString(value, "UI-Text", false);
 
-            if (TranslationManager.TryTranslate(value, out string translatedText))
+            // Cek kamus statis dulu, kalau gagal cek kamus dinamis (Regex)
+            if (TranslationManager.TryGetTranslation(value, out string translatedText) ||
+                TranslationManager.TryGetRegexTranslation(value, out translatedText))
             {
                 value = translatedText;
             }
+
+            // [FITUR BARU] Konversi uang setelah proses terjemahan selesai
+            value = CurrencyConverter.Convert(value);
         }
     }
 
@@ -37,9 +43,19 @@ namespace AlaskaGoldFeverTranslator.Patches
 
             TextDumper.DumpString(__instance.text, "UI-Prefab", false);
 
-            if (TranslationManager.TryTranslate(__instance.text, out string translatedText))
+            string currentText = __instance.text;
+            if (TranslationManager.TryGetTranslation(currentText, out string translatedText) ||
+                TranslationManager.TryGetRegexTranslation(currentText, out translatedText))
             {
-                __instance.text = translatedText;
+                currentText = translatedText;
+            }
+
+            // [FITUR BARU] Konversi uang
+            currentText = CurrencyConverter.Convert(currentText);
+
+            if (__instance.text != currentText)
+            {
+                __instance.text = currentText;
             }
         }
     }
@@ -97,10 +113,14 @@ namespace AlaskaGoldFeverTranslator.Patches
             // [FITUR BARU] Menyedot teks TMP dinamis seketika (Cocok untuk subtitle/percakapan cepat)
             TextDumper.DumpString(value, "TMP-Text", false);
 
-            if (TranslationManager.TryTranslate(value, out string translatedText))
+            if (TranslationManager.TryGetTranslation(value, out string translatedText) ||
+                TranslationManager.TryGetRegexTranslation(value, out translatedText))
             {
                 value = translatedText;
             }
+
+            // [FITUR BARU] Konversi uang
+            value = CurrencyConverter.Convert(value);
         }
 
         private static void SetTextPrefix(ref string __0)
@@ -110,10 +130,14 @@ namespace AlaskaGoldFeverTranslator.Patches
             // [FITUR BARU] Menyedot teks TMP dinamis seketika
             TextDumper.DumpString(__0, "TMP-Text", false);
 
-            if (TranslationManager.TryTranslate(__0, out string translatedText))
+            if (TranslationManager.TryGetTranslation(__0, out string translatedText) ||
+                TranslationManager.TryGetRegexTranslation(__0, out translatedText))
             {
                 __0 = translatedText;
             }
+
+            // [FITUR BARU] Konversi uang
+            __0 = CurrencyConverter.Convert(__0);
         }
 
         private static void CatchPrefabText(Component __instance)
@@ -130,9 +154,19 @@ namespace AlaskaGoldFeverTranslator.Patches
                 {
                     TextDumper.DumpString(originalText, "TMP-Prefab", false);
 
-                    if (TranslationManager.TryTranslate(originalText, out string translatedText))
+                    string newText = originalText;
+                    if (TranslationManager.TryGetTranslation(originalText, out string translatedText) ||
+                        TranslationManager.TryGetRegexTranslation(originalText, out translatedText))
                     {
-                        prop.SetValue(__instance, translatedText, null);
+                        newText = translatedText;
+                    }
+
+                    // [FITUR BARU] Konversi uang
+                    newText = CurrencyConverter.Convert(newText);
+
+                    if (originalText != newText)
+                    {
+                        prop.SetValue(__instance, newText, null);
                     }
                 }
             }

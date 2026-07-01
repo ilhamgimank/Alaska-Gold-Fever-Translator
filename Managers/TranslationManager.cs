@@ -1,20 +1,23 @@
-﻿// Managers/TranslationManager.cs (Fitur memuat, menambah, dan menyimpan data terjemahan)
-using System.IO;
+﻿// Managers/TranslationManager.cs (Manajer untuk memuat dan menyimpan teks terjemahan)
 using System.Collections.Generic;
+using System.IO;
 using System.Text.RegularExpressions;
 
 namespace AlaskaGoldFeverTranslator.Managers
 {
     public static class TranslationManager
     {
-        // Dictionary utama untuk Teks Statis
+        // Kamus untuk teks biasa
         public static Dictionary<string, string> TranslatedStrings { get; private set; }
 
-        // Dictionary khusus untuk Pola Regex
+        // Kamus untuk pola Regex dinamis
         public static Dictionary<string, string> TranslatedRegexs { get; private set; }
 
-        // HashSet untuk menyimpan hasil terjemahan agar dikenali dumper
+        // HashSet untuk menyimpan hasil terjemahan agar dikenali dumper (Anti-Mantul Statis)
         public static HashSet<string> TranslatedValues { get; private set; }
+
+        // HashSet untuk menyimpan pola regex dari sisi bahasa Indonesia (Anti-Mantul Dinamis)
+        public static HashSet<string> TranslatedRegexValuesAsPatterns { get; private set; }
 
         public static string CurrentLanguage { get; set; } = "Indonesian";
 
@@ -25,9 +28,11 @@ namespace AlaskaGoldFeverTranslator.Managers
             TranslatedStrings = new Dictionary<string, string>(System.StringComparer.OrdinalIgnoreCase);
             TranslatedRegexs = new Dictionary<string, string>();
             TranslatedValues = new HashSet<string>(System.StringComparer.OrdinalIgnoreCase);
+            TranslatedRegexValuesAsPatterns = new HashSet<string>(System.StringComparer.OrdinalIgnoreCase);
+
             LoadTranslations();
 
-            Main.Logger.LogInfo("Translation Manager initialized with Regex Support.");
+            Main.Logger.LogInfo("Translation Manager initialized with Anti-Bouncing Regex Support.");
         }
 
         public static void LoadTranslations()
@@ -37,118 +42,106 @@ namespace AlaskaGoldFeverTranslator.Managers
                 TranslatedStrings.Clear();
                 TranslatedRegexs.Clear();
                 TranslatedValues.Clear();
+                TranslatedRegexValuesAsPatterns.Clear();
             }
 
             string languagePath = Path.Combine(FileManager.LocalizationPath, CurrentLanguage, "Strings");
-
             if (Directory.Exists(languagePath))
             {
-                // 1. Memuat Teks Statis
-                string stringsPath = Path.Combine(languagePath, "translation_strings.json");
-                if (File.Exists(stringsPath))
+                string staticPath = Path.Combine(languagePath, "translation_strings.json");
+                if (File.Exists(staticPath))
                 {
-                    ParseSimpleJson(File.ReadAllText(stringsPath, System.Text.Encoding.UTF8), TranslatedStrings);
-                    SaveTranslationsToFile(); // Bersihkan duplikat case-insensitive
+                    ParseSimpleJson(File.ReadAllText(staticPath, System.Text.Encoding.UTF8), TranslatedStrings);
+
+                    // Daftarkan semua teks bahasa Indonesia ke memori perlindungan
+                    lock (_lock)
+                    {
+                        foreach (var kvp in TranslatedStrings)
+                        {
+                            TranslatedValues.Add(kvp.Value);
+                        }
+                    }
                 }
 
-                // 2. Memuat Teks Regex (Dukung penamaan dengan s atau tanpa s)
-                string regexPath1 = Path.Combine(languagePath, "translation_regex.json");
-                string regexPath2 = Path.Combine(languagePath, "translation_regexs.json");
+                string regexPath1 = Path.Combine(languagePath, "translation_regexs.json");
+                string regexPath2 = Path.Combine(languagePath, "translation_regex.json");
 
                 if (File.Exists(regexPath1)) ParseSimpleJson(File.ReadAllText(regexPath1, System.Text.Encoding.UTF8), TranslatedRegexs);
                 if (File.Exists(regexPath2)) ParseSimpleJson(File.ReadAllText(regexPath2, System.Text.Encoding.UTF8), TranslatedRegexs);
+
+                // Mendaftarkan pola nilai terjemahan untuk perlindungan anti-mantul (Bouncing)
+                lock (_lock)
+                {
+                    foreach (var kvp in TranslatedRegexs)
+                    {
+                        RegisterRegexValuePattern(kvp.Value);
+                    }
+                }
+
+                // Melakukan penyimpanan ulang otomatis untuk membersihkan duplikat/format (Deduplication)
+                SaveTranslationsToFile();
 
                 Main.Logger.LogInfo($"Loaded {TranslatedStrings.Count} static strings and {TranslatedRegexs.Count} regex patterns for language: {CurrentLanguage}.");
             }
             else
             {
-                Main.Logger.LogWarning($"Localization folder for {CurrentLanguage} not found!");
+                Main.Logger.LogWarning($"Language folder for {CurrentLanguage} not found.");
             }
         }
 
-        // Fungsi Cerdas untuk mengartikan teks. Digunakan oleh seluruh Patch in-game!
-        public static bool TryTranslate(string originalText, out string translatedText)
+        public static bool TryGetTranslation(string originalText, out string translatedText)
+        {
+            return TranslatedStrings.TryGetValue(originalText, out translatedText);
+        }
+
+        public static bool TryGetRegexTranslation(string originalText, out string translatedText)
         {
             translatedText = null;
             if (string.IsNullOrEmpty(originalText)) return false;
 
             lock (_lock)
             {
-                // 1. Pengecekan Cepat Teks Statis
-                if (TranslatedStrings.TryGetValue(originalText, out translatedText))
-                {
-                    return true;
-                }
-
-                // 2. Pengecekan Pola Regex
                 foreach (var kvp in TranslatedRegexs)
                 {
-                    // Memeriksa apakah teks cocok dengan pola regex (ditambah ^ dan $ agar akurat penuh)
-                    Match match = Regex.Match(originalText, "^" + kvp.Key + "$", RegexOptions.IgnoreCase);
-
+                    // Memastikan kita mencocokkan string dari awal (^) sampai akhir ($)
+                    var match = Regex.Match(originalText, "^" + kvp.Key + "$");
                     if (match.Success)
                     {
+                        List<string> args = new List<string>();
+                        for (int i = 1; i < match.Groups.Count; i++)
+                        {
+                            args.Add(match.Groups[i].Value);
+                        }
+
                         try
                         {
-                            // Mengumpulkan semua angka yang tertangkap ke dalam array parameter
-                            object[] args = new object[match.Groups.Count - 1];
-                            for (int i = 1; i < match.Groups.Count; i++)
-                            {
-                                args[i - 1] = match.Groups[i].Value;
-                            }
-
-                            // Memasukkan angka asli ke dalam terjemahan format (Contoh: "{0}x Barang")
-                            translatedText = string.Format(kvp.Value, args);
-
-                            // Masukkan ke memori agar Dumper tahu ini sudah diterjemahkan
-                            TranslatedValues.Add(translatedText);
+                            // Menyisipkan angka/argumen kembali ke penanda {0}, {1} dll
+                            translatedText = string.Format(kvp.Value, args.ToArray());
                             return true;
                         }
-                        catch (System.Exception ex)
+                        catch
                         {
-                            Main.Logger.LogError($"[Regex Format Error] Pattern: {kvp.Key} | Error: {ex.Message}");
+                            // Abaikan jika format terjemahan user salah (misal kurang {0})
+                            return false;
                         }
                     }
                 }
             }
-
             return false;
         }
 
-        private static void ParseSimpleJson(string json, Dictionary<string, string> targetDictionary)
+        public static void AddAndSaveTranslation(string original, string translated)
         {
-            string pattern = "\"((?:[^\"\\\\]|\\\\.)*)\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)*)\"";
-            MatchCollection matches = Regex.Matches(json, pattern);
+            if (string.IsNullOrEmpty(original) || string.IsNullOrEmpty(translated)) return;
 
             lock (_lock)
             {
-                foreach (Match match in matches)
-                {
-                    string originalText = UnescapeFromJson(match.Groups[1].Value);
-                    string translatedText = UnescapeFromJson(match.Groups[2].Value);
-
-                    if (!string.IsNullOrEmpty(translatedText))
-                    {
-                        targetDictionary[originalText] = translatedText;
-                        TranslatedValues.Add(translatedText);
-                    }
-                }
-            }
-        }
-
-        public static void AddAndSaveTranslation(string originalText, string translatedText)
-        {
-            if (string.IsNullOrEmpty(originalText) || string.IsNullOrEmpty(translatedText)) return;
-
-            lock (_lock)
-            {
-                TranslatedStrings[originalText] = translatedText;
-                TranslatedValues.Add(translatedText);
+                TranslatedStrings[original] = translated;
+                TranslatedValues.Add(translated); // Daftarkan ke memori perlindungan statis
             }
             SaveTranslationsToFile();
         }
 
-        // [FITUR BARU] Fungsi untuk menyimpan hasil format Regex otomatis dari Auto Translator
         public static void AddAndSaveRegexTranslation(string regexKey, string translatedFormat)
         {
             if (string.IsNullOrEmpty(regexKey) || string.IsNullOrEmpty(translatedFormat)) return;
@@ -156,93 +149,99 @@ namespace AlaskaGoldFeverTranslator.Managers
             lock (_lock)
             {
                 TranslatedRegexs[regexKey] = translatedFormat;
+                RegisterRegexValuePattern(translatedFormat); // Daftarkan ke memori perlindungan Regex
             }
             SaveRegexTranslationsToFile();
         }
 
+        // Mengonversi format {0} menjadi pola Regex asli dan mendaftarkannya sebagai Blacklist
+        private static void RegisterRegexValuePattern(string translatedFormat)
+        {
+            if (string.IsNullOrEmpty(translatedFormat)) return;
+            string escaped = EscapeForRegexPattern(translatedFormat);
+            // Mengubah \{0\} kembali menjadi (\d+) agar cocok dengan hasil tangkapan Dumper
+            string pattern = Regex.Replace(escaped, @"\\\{\d+\\\}", @"(\d+)");
+
+            lock (_lock)
+            {
+                TranslatedRegexValuesAsPatterns.Add(pattern);
+            }
+        }
+
+        private static string EscapeForRegexPattern(string text)
+        {
+            string[] specialChars = { "\\", "^", "$", ".", "|", "?", "*", "+", "(", ")", "[", "]", "{", "}" };
+            string safeText = text;
+            foreach (var c in specialChars)
+            {
+                safeText = safeText.Replace(c, "\\" + c);
+            }
+            return safeText;
+        }
+
         private static void SaveTranslationsToFile()
         {
-            try
+            lock (_lock)
             {
-                string languagePath = Path.Combine(FileManager.LocalizationPath, CurrentLanguage, "Strings");
-                string filePath = Path.Combine(languagePath, "translation_strings.json");
-
-                var sb = new System.Text.StringBuilder();
-                sb.AppendLine("{");
-
-                lock (_lock)
-                {
-                    int count = 0;
-                    foreach (var kvp in TranslatedStrings)
-                    {
-                        string escapedKey = EscapeForJson(kvp.Key);
-                        string escapedValue = EscapeForJson(kvp.Value);
-
-                        sb.Append($"  \"{escapedKey}\": \"{escapedValue}\"");
-
-                        if (count < TranslatedStrings.Count - 1) sb.AppendLine(",");
-                        else sb.AppendLine();
-
-                        count++;
-                    }
-                }
-
-                sb.AppendLine("}");
-                File.WriteAllText(filePath, sb.ToString(), System.Text.Encoding.UTF8);
-            }
-            catch (System.Exception ex)
-            {
-                Main.Logger.LogError($"[TranslationManager] Error saving JSON: {ex.Message}");
+                string path = Path.Combine(FileManager.LocalizationPath, CurrentLanguage, "Strings", "translation_strings.json");
+                WriteDictToJson(path, TranslatedStrings);
             }
         }
 
-        // [FITUR BARU] Fungsi menulis ke translation_regexs.json
         private static void SaveRegexTranslationsToFile()
         {
+            lock (_lock)
+            {
+                string path = Path.Combine(FileManager.LocalizationPath, CurrentLanguage, "Strings", "translation_regexs.json");
+                WriteDictToJson(path, TranslatedRegexs);
+            }
+        }
+
+        private static void WriteDictToJson(string path, Dictionary<string, string> dict)
+        {
             try
             {
-                string languagePath = Path.Combine(FileManager.LocalizationPath, CurrentLanguage, "Strings");
-                string filePath = Path.Combine(languagePath, "translation_regexs.json");
-
-                var sb = new System.Text.StringBuilder();
-                sb.AppendLine("{");
-
-                lock (_lock)
+                using (StreamWriter writer = new StreamWriter(path, false, System.Text.Encoding.UTF8))
                 {
+                    writer.WriteLine("{");
                     int count = 0;
-                    foreach (var kvp in TranslatedRegexs)
+                    foreach (var kvp in dict)
                     {
-                        string escapedKey = EscapeForJson(kvp.Key);
-                        string escapedValue = EscapeForJson(kvp.Value);
-
-                        sb.Append($"  \"{escapedKey}\": \"{escapedValue}\"");
-
-                        if (count < TranslatedRegexs.Count - 1) sb.AppendLine(",");
-                        else sb.AppendLine();
-
                         count++;
+                        writer.Write($"  \"{EscapeForJson(kvp.Key)}\": \"{EscapeForJson(kvp.Value)}\"");
+                        if (count < dict.Count) writer.WriteLine(",");
+                        else writer.WriteLine();
                     }
+                    writer.WriteLine("}");
                 }
-
-                sb.AppendLine("}");
-                File.WriteAllText(filePath, sb.ToString(), System.Text.Encoding.UTF8);
             }
             catch (System.Exception ex)
             {
-                Main.Logger.LogError($"[TranslationManager] Error saving Regex JSON: {ex.Message}");
+                Main.Logger.LogError("Error saving JSON: " + ex.Message);
             }
         }
 
-        private static string UnescapeFromJson(string s)
+        public static void ParseSimpleJson(string json, Dictionary<string, string> dict)
         {
-            if (string.IsNullOrEmpty(s)) return "";
-            return s.Replace("\\\"", "\"").Replace("\\n", "\n").Replace("\\r", "\r").Replace("\\t", "\t").Replace("\\\\", "\\");
+            var matches = Regex.Matches(json, "\"([^\"]*)\"\\s*:\\s*\"([^\"]*)\"");
+            foreach (Match m in matches)
+            {
+                string key = UnescapeJson(m.Groups[1].Value);
+                string val = UnescapeJson(m.Groups[2].Value);
+                dict[key] = val;
+            }
         }
 
-        private static string EscapeForJson(string s)
+        public static string EscapeForJson(string s)
         {
             if (string.IsNullOrEmpty(s)) return "";
             return s.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\n", "\\n").Replace("\r", "\\r").Replace("\t", "\\t");
+        }
+
+        public static string UnescapeJson(string s)
+        {
+            if (string.IsNullOrEmpty(s)) return "";
+            return s.Replace("\\n", "\n").Replace("\\r", "\r").Replace("\\t", "\t").Replace("\\\"", "\"").Replace("\\\\", "\\");
         }
     }
 }
