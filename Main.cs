@@ -15,7 +15,7 @@ namespace AlaskaGoldFeverTranslator
         {
             public const string PLUGIN_GUID = "com.ilhamgimank.alaskagoldfever.translator";
             public const string PLUGIN_NAME = "Alaska Gold Fever Translator";
-            public const string PLUGIN_VERSION = "0.2.8"; // Auto Currency Converter & Texture Dumper Fixes
+            public const string PLUGIN_VERSION = "0.2.14"; // Live Market Edition
         }
 
         // Variabel statis agar bisa diakses dari class lain
@@ -53,6 +53,9 @@ namespace AlaskaGoldFeverTranslator
             Features.AutoTranslator.Initialize();
             Features.LiveUpdater.Initialize();
 
+            // [FITUR BARU] Menyalakan Web Scraper untuk Live Market Currency
+            Features.CurrencyConverter.Initialize();
+
             // Menginisialisasi Harmony dan menerapkan semua dumper UI standar
             _harmony = new Harmony(PluginInfo.PLUGIN_GUID);
             _harmony.PatchAll();
@@ -65,7 +68,7 @@ namespace AlaskaGoldFeverTranslator
             // [PERBAIKAN] Menyalakan Pencegat Gambar (Image Patch) ke dalam game!
             Patches.ImagePatch.ApplyPatch(_harmony);
 
-            Logger.LogInfo("Update v0.2.8 initialization complete. All Systems Active.");
+            Logger.LogInfo("Update v0.2.14 initialization complete. All Systems Active (Live Market Edition).");
         }
     }
 }
