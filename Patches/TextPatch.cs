@@ -3,7 +3,6 @@ using HarmonyLib;
 using UnityEngine.UI;
 using UnityEngine;
 using System.Reflection;
-using System.Text.RegularExpressions;
 using AlaskaGoldFeverTranslator.Managers;
 using AlaskaGoldFeverTranslator.Features;
 
@@ -14,22 +13,21 @@ namespace AlaskaGoldFeverTranslator.Patches
     public static class UGUITextSetterPatch
     {
         [HarmonyPriority(Priority.First)]
-        static void Prefix(ref string value)
+        static void Prefix(Text __instance, ref string value)
         {
             if (string.IsNullOrEmpty(value)) return;
 
-            // [FITUR BARU] Menyedot teks SEBELUM diterjemahkan secara real-time! Sangat cepat untuk percakapan.
             TextDumper.DumpString(value, "UI-Text", false);
 
-            // Cek kamus statis dulu, kalau gagal cek kamus dinamis (Regex)
             if (TranslationManager.TryGetTranslation(value, out string translatedText) ||
                 TranslationManager.TryGetRegexTranslation(value, out translatedText))
             {
                 value = translatedText;
             }
 
-            // [FITUR BARU] Konversi uang setelah proses terjemahan selesai
             value = CurrencyConverter.Convert(value);
+            // [FITUR BARU] Konversi Mata Angin Kompas
+            value = CompassConverter.Convert(value, __instance);
         }
     }
 
@@ -50,8 +48,9 @@ namespace AlaskaGoldFeverTranslator.Patches
                 currentText = translatedText;
             }
 
-            // [FITUR BARU] Konversi uang
             currentText = CurrencyConverter.Convert(currentText);
+            // [FITUR BARU] Konversi Mata Angin Kompas
+            currentText = CompassConverter.Convert(currentText, __instance);
 
             if (__instance.text != currentText)
             {
@@ -106,11 +105,10 @@ namespace AlaskaGoldFeverTranslator.Patches
             }
         }
 
-        private static void TextSetterPrefix(ref string value)
+        private static void TextSetterPrefix(Component __instance, ref string value)
         {
             if (string.IsNullOrEmpty(value)) return;
 
-            // [FITUR BARU] Menyedot teks TMP dinamis seketika (Cocok untuk subtitle/percakapan cepat)
             TextDumper.DumpString(value, "TMP-Text", false);
 
             if (TranslationManager.TryGetTranslation(value, out string translatedText) ||
@@ -119,15 +117,15 @@ namespace AlaskaGoldFeverTranslator.Patches
                 value = translatedText;
             }
 
-            // [FITUR BARU] Konversi uang
             value = CurrencyConverter.Convert(value);
+            // [FITUR BARU] Konversi Mata Angin Kompas
+            value = CompassConverter.Convert(value, __instance);
         }
 
-        private static void SetTextPrefix(ref string __0)
+        private static void SetTextPrefix(Component __instance, ref string __0)
         {
             if (string.IsNullOrEmpty(__0)) return;
 
-            // [FITUR BARU] Menyedot teks TMP dinamis seketika
             TextDumper.DumpString(__0, "TMP-Text", false);
 
             if (TranslationManager.TryGetTranslation(__0, out string translatedText) ||
@@ -136,16 +134,15 @@ namespace AlaskaGoldFeverTranslator.Patches
                 __0 = translatedText;
             }
 
-            // [FITUR BARU] Konversi uang
             __0 = CurrencyConverter.Convert(__0);
+            // [FITUR BARU] Konversi Mata Angin Kompas
+            __0 = CompassConverter.Convert(__0, __instance);
         }
 
         private static void CatchPrefabText(Component __instance)
         {
             if (__instance == null) return;
 
-            // Menggunakan C# Reflection standar (GetProperty) alih-alih AccessTools
-            // untuk mencegah HarmonyX meneriakkan [Warning] saat objek tidak punya teks.
             var prop = __instance.GetType().GetProperty("text");
             if (prop != null)
             {
@@ -161,8 +158,9 @@ namespace AlaskaGoldFeverTranslator.Patches
                         newText = translatedText;
                     }
 
-                    // [FITUR BARU] Konversi uang
                     newText = CurrencyConverter.Convert(newText);
+                    // [FITUR BARU] Konversi Mata Angin Kompas
+                    newText = CompassConverter.Convert(newText, __instance);
 
                     if (originalText != newText)
                     {

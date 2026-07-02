@@ -15,7 +15,7 @@ namespace AlaskaGoldFeverTranslator
         {
             public const string PLUGIN_GUID = "com.ilhamgimank.alaskagoldfever.translator";
             public const string PLUGIN_NAME = "Alaska Gold Fever Translator";
-            public const string PLUGIN_VERSION = "0.2.14"; // Live Market Edition
+            public const string PLUGIN_VERSION = "0.2.15"; // Navigation Edition
         }
 
         // Variabel statis agar bisa diakses dari class lain
@@ -68,7 +68,7 @@ namespace AlaskaGoldFeverTranslator
             // [PERBAIKAN] Menyalakan Pencegat Gambar (Image Patch) ke dalam game!
             Patches.ImagePatch.ApplyPatch(_harmony);
 
-            Logger.LogInfo("Update v0.2.14 initialization complete. All Systems Active (Live Market Edition).");
+            Logger.LogInfo("Update v0.2.15 initialization complete. All Systems Active (Navigation Edition).");
         }
     }
 }
