@@ -6,7 +6,8 @@ namespace AlaskaGoldFeverTranslator.Features
 {
     public static class CompassConverter
     {
-        private static readonly Dictionary<string, string> CompassDirections = new Dictionary<string, string>(System.StringComparer.Ordinal)
+        // [PERBAIKAN KRUSIAL] Menggunakan OrdinalIgnoreCase agar huruf kecil seperti "w", "sw", "nw" ikut terdeteksi!
+        private static readonly Dictionary<string, string> CompassDirections = new Dictionary<string, string>(System.StringComparer.OrdinalIgnoreCase)
         {
             { "N", "U" },
             { "NE", "TL" },
@@ -22,12 +23,13 @@ namespace AlaskaGoldFeverTranslator.Features
         {
             if (string.IsNullOrEmpty(text)) return text;
 
-            // Menghapus spasi sementara untuk pengecekan (misal " W ")
+            // Menghapus spasi sementara untuk pengecekan (misal " w ")
             string cleanText = text.Trim();
 
             // Arah mata angin maksimal hanya 2 huruf, abaikan jika lebih panjang
             if (cleanText.Length > 2) return text;
 
+            // Cek ke dalam dictionary (Sekarang kebal huruf besar/kecil!)
             if (CompassDirections.TryGetValue(cleanText, out string translatedDir))
             {
                 // [SMART FILTER] Mencegah tombol keyboard (W, A, S, D, E) ikut diterjemahkan!
@@ -45,6 +47,7 @@ namespace AlaskaGoldFeverTranslator.Features
                 }
 
                 // Mengembalikan hasil terjemahan namun tetap menjaga spasi aslinya (jika ada)
+                // text.Replace akan mengganti kata sesuai case aslinya ("sw" diganti jadi "BD")
                 return text.Replace(cleanText, translatedDir);
             }
 

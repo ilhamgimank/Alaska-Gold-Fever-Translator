@@ -39,7 +39,7 @@ namespace AlaskaGoldFeverTranslator.Features
             Object.DontDestroyOnLoad(handlerObj);
             handlerObj.AddComponent<PathDetectorHandler>();
 
-            Main.Logger.LogInfo("Path Detector with Advanced Scanner initialized.");
+            Main.Logger.LogInfo("Path Detector with Advanced Scanner and Cursor Unlocker initialized.");
         }
 
         // Komponen MonoBehaviour internal untuk mendeteksi input setiap frame
@@ -56,8 +56,27 @@ namespace AlaskaGoldFeverTranslator.Features
         {
             if (!IsEnabled) return;
 
-            // Tekan Ctrl Kiri + Klik Kanan untuk Scan Teks
-            if (Input.GetKey(KeyCode.LeftControl) && Input.GetMouseButtonDown(1))
+            // [FITUR BARU] Toggle Kursor Bebas dengan tombol F8
+            if (Input.GetKeyDown(KeyCode.F8))
+            {
+                // Jika kursor sedang dikunci/disembunyikan oleh game, kita paksa muncul!
+                if (Cursor.lockState == CursorLockMode.Locked || !Cursor.visible)
+                {
+                    Cursor.lockState = CursorLockMode.None;
+                    Cursor.visible = true;
+                    Main.Logger.LogInfo("🔓 [Dev Mode] Cursor UNLOCKED and VISIBLE for scanning!");
+                }
+                // Jika ditekan lagi, kembalikan ke game
+                else
+                {
+                    Cursor.lockState = CursorLockMode.Locked;
+                    Cursor.visible = false;
+                    Main.Logger.LogInfo("🔒 [Dev Mode] Cursor LOCKED back to gameplay.");
+                }
+            }
+
+            // [PERBAIKAN] Tekan Ctrl Kanan + Klik Kanan untuk Scan Teks (Aman dari jongkok & lari!)
+            if (Input.GetKey(KeyCode.RightControl) && Input.GetMouseButtonDown(1))
             {
                 ScanObjectUnderMouse();
             }
@@ -69,7 +88,7 @@ namespace AlaskaGoldFeverTranslator.Features
             }
         }
 
-        // [UPDATE] Pemindai Tekstur/Gambar kini dibekali Filter Area & Daftar Hitam (Blacklist)!
+        // Scanner Tekstur/Gambar (Filter Area & Daftar Hitam)
         private static void PickTextureUnderMouse()
         {
             PickedSpriteName = "";
@@ -82,10 +101,9 @@ namespace AlaskaGoldFeverTranslator.Features
             Main.Logger.LogInfo("Texture Picker - Scanning for Sprites/Images");
             Main.Logger.LogInfo("---------------------------------------------");
 
-            // [FITUR BARU] Menyimpan ukuran area terkecil untuk memfilter background raksasa
             float smallestArea = float.MaxValue;
 
-            // 1. ABSOLUTE UI SCANNER (Memaksa scan tanpa mempedulikan Raycast Target!)
+            // 1. ABSOLUTE UI SCANNER
             Image[] allImages = Object.FindObjectsByType<Image>(FindObjectsSortMode.None);
             foreach (Image img in allImages)
             {
@@ -94,14 +112,11 @@ namespace AlaskaGoldFeverTranslator.Features
                     if (IsPointInsideRectTransform(img.rectTransform, mousePos))
                     {
                         string cleanName = img.sprite.name.Replace("_Translated", "").Replace("(Clone)", "").Trim();
-
-                        // [BLACKLIST MUTLAK] Abaikan layer transparan raksasa pelindung klik bawaan game!
                         if (cleanName == "BlockSprite" || cleanName == "UIMask") continue;
 
                         string path = GetPath(img.transform);
                         Main.Logger.LogInfo($"[Texture Picker] (Absolute UI) Found: {cleanName} on {img.gameObject.name}\nPath: {path}\nFile Name: {cleanName}.png");
 
-                        // Kalkulasi luas gambar. Tombol/Ikon pasti areanya lebih kecil dari Background!
                         float area = img.rectTransform.rect.width * img.rectTransform.rect.height;
                         if (area < smallestArea)
                         {
@@ -115,7 +130,7 @@ namespace AlaskaGoldFeverTranslator.Features
                 }
             }
 
-            // 2. RAYCAST SCANNER (Jalankan SELALU, jangan diskip. Ini scanner paling akurat untuk UI!)
+            // 2. RAYCAST SCANNER
             if (EventSystem.current != null)
             {
                 PointerEventData pointerData = new PointerEventData(EventSystem.current) { position = mousePos };
@@ -127,8 +142,6 @@ namespace AlaskaGoldFeverTranslator.Features
                     if (TryGetSpriteName(result.gameObject, out string rawName))
                     {
                         string cleanName = rawName.Replace("_Translated", "").Replace("(Clone)", "").Trim();
-
-                        // [BLACKLIST MUTLAK] Abaikan objek pelindung
                         if (cleanName == "BlockSprite" || cleanName == "UIMask") continue;
 
                         string path = GetPath(result.gameObject.transform);
@@ -152,7 +165,7 @@ namespace AlaskaGoldFeverTranslator.Features
                 }
             }
 
-            // 3. PHYSICS SCANNER (Untuk objek dunia 3D/Physics yang punya Collider)
+            // 3. PHYSICS SCANNER
             if (foundCount == 0)
             {
                 Ray ray = Camera.main.ScreenPointToRay(mousePos);
@@ -163,13 +176,11 @@ namespace AlaskaGoldFeverTranslator.Features
                     if (TryGetSpriteName(hit.collider.gameObject, out string rawName))
                     {
                         string cleanName = rawName.Replace("_Translated", "").Replace("(Clone)", "").Trim();
-
                         if (cleanName == "BlockSprite" || cleanName == "UIMask") continue;
 
                         string path = GetPath(hit.collider.transform);
                         Main.Logger.LogInfo($"[Texture Picker] (Physics 3D) Found: {cleanName} on {hit.collider.gameObject.name}\nPath: {path}\nFile Name: {cleanName}.png");
 
-                        // Untuk 3D kita ambil yang teratas (pertama kali nembrak Collider)
                         PickedSpriteName = cleanName;
                         PickedPath = path;
                         PickedObjectName = hit.collider.gameObject.name;
@@ -179,7 +190,7 @@ namespace AlaskaGoldFeverTranslator.Features
                 }
             }
 
-            // 4. ABSOLUTE 2D SCANNER (Untuk objek Sprite di dunia yang tidak punya Collider)
+            // 4. ABSOLUTE 2D SCANNER
             if (foundCount == 0)
             {
                 smallestArea = float.MaxValue;
@@ -189,7 +200,6 @@ namespace AlaskaGoldFeverTranslator.Features
                     if (sr.gameObject.activeInHierarchy && sr.sprite != null && IsObjectUnderMouse(sr.gameObject))
                     {
                         string cleanName = sr.sprite.name.Replace("_Translated", "").Replace("(Clone)", "").Trim();
-
                         if (cleanName == "BlockSprite" || cleanName == "UIMask") continue;
 
                         string path = GetPath(sr.transform);
@@ -223,7 +233,6 @@ namespace AlaskaGoldFeverTranslator.Features
             }
         }
 
-        // [UPDATE] Menggunakan parameter 'out' agar variabel utama tidak kotor sebelum waktunya
         private static bool TryGetSpriteName(GameObject obj, out string spriteName)
         {
             spriteName = "";
@@ -300,7 +309,7 @@ namespace AlaskaGoldFeverTranslator.Features
                 }
             }
 
-            // Fallback: Menggunakan Raycast biasa jika belum ada yang ditemukan (atau mode advanced)
+            // Fallback: Raycast
             if (foundCount == 0 || IsAdvanced)
             {
                 if (EventSystem.current != null)
@@ -326,7 +335,6 @@ namespace AlaskaGoldFeverTranslator.Features
             Main.Logger.LogInfo("---------------------------------------------");
         }
 
-        // Utilitas untuk memeriksa apakah kursor ada di dalam area RectTransform
         private static bool IsPointInsideRectTransform(RectTransform rectTransform, Vector2 screenPoint)
         {
             Camera cam = null;
@@ -338,7 +346,6 @@ namespace AlaskaGoldFeverTranslator.Features
             return RectTransformUtility.RectangleContainsScreenPoint(rectTransform, screenPoint, cam);
         }
 
-        // Utilitas untuk memeriksa objek 3D/2D menggunakan Raycast Fisika
         private static bool IsObjectUnderMouse(GameObject obj)
         {
             if (!obj.TryGetComponent<Renderer>(out var r)) return false;
@@ -348,7 +355,6 @@ namespace AlaskaGoldFeverTranslator.Features
             return bounds.IntersectRay(ray);
         }
 
-        // Pengecekan mendalam untuk jenis InputField atau Objek yang disorot
         private static bool CheckAndLog(GameObject obj)
         {
             if (obj == null) return false;
@@ -357,14 +363,13 @@ namespace AlaskaGoldFeverTranslator.Features
             string type = "Unknown";
             bool isTarget = false;
 
-            // Cek InputField bawaan
             if (obj.TryGetComponent<InputField>(out var inputField))
             {
                 textContent = inputField.text;
                 type = "UI.InputField";
                 isTarget = true;
             }
-            else if (obj.GetComponent("TMPro.TMP_InputField") != null) // Cek TMP InputField
+            else if (obj.GetComponent("TMPro.TMP_InputField") != null)
             {
                 Component tmp = obj.GetComponent("TMPro.TMP_InputField");
                 var prop = tmp.GetType().GetProperty("text");
@@ -376,7 +381,6 @@ namespace AlaskaGoldFeverTranslator.Features
                 }
             }
 
-            // Menyimpan nama sprite terakhir yang terdeteksi
             if (obj.TryGetComponent<Image>(out var img) && img.sprite != null)
             {
                 LastScannedSpriteName = img.sprite.name;
@@ -393,7 +397,6 @@ namespace AlaskaGoldFeverTranslator.Features
                 LastScannedSpriteName = LastScannedSpriteName.Replace("_Translated", "").Replace("(Clone)", "").Trim();
             }
 
-            // Jika objek target ditemukan, langsung cetak
             if (isTarget || (IsAdvanced && obj.GetComponent<RectTransform>() != null))
             {
                 PrintLog(obj, textContent, type);
@@ -403,7 +406,6 @@ namespace AlaskaGoldFeverTranslator.Features
             return false;
         }
 
-        // Mencetak hasil log secara detail
         private static void PrintLog(GameObject obj, string text, string type)
         {
             string path = GetPath(obj.transform);
@@ -445,14 +447,12 @@ namespace AlaskaGoldFeverTranslator.Features
             }
         }
 
-        // Mengamankan string agar aman saat dicetak dan disalin ke format JSON
         private static string EscapeForJson(string s)
         {
             if (string.IsNullOrEmpty(s)) return "";
             return s.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\n", "\\n").Replace("\r", "\\r").Replace("\t", "\\t");
         }
 
-        // Mendapatkan Path hierarchy objek yang panjang secara berurutan
         public static string GetPath(Transform current)
         {
             if (current.parent == null)
