@@ -17,6 +17,29 @@ namespace AlaskaGoldFeverTranslator.Features
             @"(?:(?:\$|USD)\s*([-\d,\.]+))|(?:([-\d,\.]+)\s*(?:\$|USD))|^(?:\s*)([-]?\d{1,3}(?:[.,]\d{3})*[.,]\d{2})(?:\s*)$",
             RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
+        // [FITUR BARU] Helper untuk membaca angka dengan format koma/titik yang berantakan (Eropa vs US)
+        private static bool TryParseFlexibleNumber(string numberStr, out double result)
+        {
+            result = 0;
+            if (string.IsNullOrEmpty(numberStr)) return false;
+
+            numberStr = numberStr.Trim();
+            int lastComma = numberStr.LastIndexOf(',');
+            int lastDot = numberStr.LastIndexOf('.');
+
+            if (lastComma > lastDot && (numberStr.Length - lastComma) <= 3)
+            {
+                numberStr = numberStr.Replace(".", ""); // Hapus pemisah ribuan (titik)
+                numberStr = numberStr.Replace(",", "."); // Ubah koma desimal jadi titik
+            }
+            else
+            {
+                numberStr = numberStr.Replace(",", ""); // Hapus pemisah ribuan (koma)
+            }
+
+            return double.TryParse(numberStr, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out result);
+        }
+
         public static void Initialize()
         {
             Main.Logger.LogInfo("[CurrencyConverter] Initializing Live Market Fetcher...");
@@ -82,6 +105,30 @@ namespace AlaskaGoldFeverTranslator.Features
             // Abaikan jika teks kosong
             if (string.IsNullOrEmpty(text)) return text;
 
+            // [FITUR BARU] Cek khusus Misi Pengumpulan Uang: (123.45/500.00)
+            // Mengecek apakah di kalimat ini ada kata kunci uang/bor (Indo) atau money/drill (English)
+            if (text.IndexOf("uang", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                text.IndexOf("money", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                text.IndexOf("bor", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                text.IndexOf("drill", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                // Mencari pola seperti (304,89/500,00)
+                text = Regex.Replace(text, @"\(([\d,\.]+)\s*/\s*([\d,\.]+)\)", match =>
+                {
+                    if (TryParseFlexibleNumber(match.Groups[1].Value, out double val1) &&
+                        TryParseFlexibleNumber(match.Groups[2].Value, out double val2))
+                    {
+                        // Kalikan dengan kurs pasar saat ini
+                        double idr1 = val1 * _usdToIdrRate;
+                        double idr2 = val2 * _usdToIdrRate;
+
+                        // Kembalikan dengan format Rupiah (Rp X / Rp Y)
+                        return $"(Rp. {idr1:N0} / Rp. {idr2:N0})".Replace(",", ".");
+                    }
+                    return match.Value;
+                });
+            }
+
             return CurrencyRegex.Replace(text, match =>
             {
                 // Mengambil string angka dari salah satu grup yang cocok
@@ -89,25 +136,7 @@ namespace AlaskaGoldFeverTranslator.Features
                                    match.Groups[2].Success ? match.Groups[2].Value :
                                    match.Groups[3].Value;
 
-                if (string.IsNullOrEmpty(numberStr)) return match.Value;
-
-                numberStr = numberStr.Trim();
-
-                // DETEKSI PINTAR: Mencari format Eropa/Indonesia vs Format US
-                int lastComma = numberStr.LastIndexOf(',');
-                int lastDot = numberStr.LastIndexOf('.');
-
-                if (lastComma > lastDot && (numberStr.Length - lastComma) <= 3)
-                {
-                    numberStr = numberStr.Replace(".", ""); // Hapus pemisah ribuan (titik)
-                    numberStr = numberStr.Replace(",", "."); // Ubah koma desimal jadi titik
-                }
-                else
-                {
-                    numberStr = numberStr.Replace(",", ""); // Hapus pemisah ribuan (koma)
-                }
-
-                if (double.TryParse(numberStr, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double usdAmount))
+                if (TryParseFlexibleNumber(numberStr, out double usdAmount))
                 {
                     // Menggunakan _usdToIdrRate yang bisa berubah secara Real-time!
                     double idrAmount = usdAmount * _usdToIdrRate;

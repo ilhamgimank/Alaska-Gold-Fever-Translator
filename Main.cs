@@ -15,7 +15,7 @@ namespace AlaskaGoldFeverTranslator
         {
             public const string PLUGIN_GUID = "com.ilhamgimank.alaskagoldfever.translator";
             public const string PLUGIN_NAME = "Alaska Gold Fever Translator";
-            public const string PLUGIN_VERSION = "0.2.16"; // Dev Mode Edition
+            public const string PLUGIN_VERSION = "0.2.17"; // Compass Fix Edition
         }
 
         // Static variables to be accessible from other classes
