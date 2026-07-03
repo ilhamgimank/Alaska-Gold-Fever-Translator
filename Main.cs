@@ -15,7 +15,7 @@ namespace AlaskaGoldFeverTranslator
         {
             public const string PLUGIN_GUID = "com.ilhamgimank.alaskagoldfever.translator";
             public const string PLUGIN_NAME = "Alaska Gold Fever Translator";
-            public const string PLUGIN_VERSION = "0.2.17"; // Compass Fix Edition
+            public const string PLUGIN_VERSION = "0.2.18"; // Digital Clock Edition
         }
 
         // Static variables to be accessible from other classes
@@ -56,6 +56,9 @@ namespace AlaskaGoldFeverTranslator
             // [NEW FEATURE] Enable Web Scraper for Live Market Currency
             Features.CurrencyConverter.Initialize();
 
+            // [NEW FEATURE] Inject Custom Real-World UI Clock
+            Features.DigitalClock.Initialize();
+
             // Initialize Harmony and apply all standard UI dumpers
             _harmony = new Harmony(PluginInfo.PLUGIN_GUID);
             _harmony.PatchAll();
@@ -68,7 +71,7 @@ namespace AlaskaGoldFeverTranslator
             // [FIX] Enable Image Interceptor (Image Patch) into the game!
             Patches.ImagePatch.ApplyPatch(_harmony);
 
-            Logger.LogInfo("Update v0.2.16 initialization complete. All Systems Active (Dev Mode Edition).");
+            Logger.LogInfo("Update v0.2.18 initialization complete. All Systems Active (Dev Mode Edition).");
         }
     }
 }

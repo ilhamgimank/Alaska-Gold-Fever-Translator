@@ -124,6 +124,7 @@
     <Compile Include="Features\AutoTranslator.cs" />
     <Compile Include="Features\CompassConverter.cs" />
     <Compile Include="Features\CurrencyConverter.cs" />
+    <Compile Include="Features\DigitalClock.cs" />
     <Compile Include="Features\Dumpers\FairyGUIDumper.cs" />
     <Compile Include="Features\Dumpers\IMGUIDumper.cs" />
     <Compile Include="Features\Dumpers\TextMeshDumper.cs" />
