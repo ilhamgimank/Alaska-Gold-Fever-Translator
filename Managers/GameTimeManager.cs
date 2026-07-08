@@ -13,6 +13,8 @@ namespace AlaskaGoldFeverTranslator.Features
         public static int Minutes { get; private set; }
         public static int Seconds { get; private set; }
 
+        public static bool IsInitialized { get; private set; } // Mencegah inisialisasi ganda
+
         private static Type _timeOfDayControllerType;
         private static object _timeOfDayInstance;
         private static PropertyInfo _timeProp;
@@ -21,6 +23,9 @@ namespace AlaskaGoldFeverTranslator.Features
 
         public static void Initialize()
         {
+            if (IsInitialized) return;
+            IsInitialized = true;
+
             GameObject obj = new GameObject("Alaska_GameTimeManager");
             UnityEngine.Object.DontDestroyOnLoad(obj);
             obj.AddComponent<GameTimeManagerHandler>();
@@ -55,7 +60,7 @@ namespace AlaskaGoldFeverTranslator.Features
                 if (_timeOfDayControllerType != null)
                 {
                     var instanceField = _timeOfDayControllerType.GetField("Instance", BindingFlags.Static | BindingFlags.Public | BindingFlags.FlattenHierarchy);
-                    #pragma warning disable
+#pragma warning disable
                     object instance = (instanceField != null) ? instanceField.GetValue(null) : null;
 
                     if (instance != null)

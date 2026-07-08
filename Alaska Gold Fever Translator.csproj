@@ -131,6 +131,7 @@
     <Compile Include="Features\Dumpers\TextMeshDumper.cs" />
     <Compile Include="Features\Dumpers\TMPDumper.cs" />
     <Compile Include="Features\Dumpers\UGUIDumper.cs" />
+    <Compile Include="Features\Translator Engine\MyMemoryTranslate.cs" />
     <Compile Include="Managers\GameTimeManager.cs" />
     <Compile Include="Features\LiveUpdater.cs" />
     <Compile Include="Features\PathDetector.cs" />

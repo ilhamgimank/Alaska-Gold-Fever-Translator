@@ -1,8 +1,9 @@
 ﻿// Features/AutoTranslator.cs (Sistem antrean penerjemahan otomatis di latar belakang)
-using System.Collections.Generic;
-using System.Threading.Tasks;
-using System.Text.RegularExpressions;
 using AlaskaGoldFeverTranslator.Managers;
+using System.Collections.Generic;
+using System.Text.RegularExpressions;
+using System.Threading.Tasks;
+using UnityEngine;
 
 namespace AlaskaGoldFeverTranslator.Features
 {
@@ -21,9 +22,18 @@ namespace AlaskaGoldFeverTranslator.Features
         private static Queue<TranslationTask> _translationQueue = new Queue<TranslationTask>();
         private static bool _isTranslating = false;
 
+        // [FITUR BARU] Enum untuk melacak mesin penerjemah yang aktif
+        public enum TranslationEngine { Google, MyMemory }
+        public static TranslationEngine ActiveEngine = TranslationEngine.Google; // Default pakai Google
+
         public static void Initialize()
         {
-            Main.Logger.LogInfo("Auto Translator queue system initialized (Regex Supported).");
+            // Memasang pendeteksi tombol ke dalam game
+            GameObject handlerObj = new GameObject("Alaska_AutoTranslatorHandler");
+            UnityEngine.Object.DontDestroyOnLoad(handlerObj);
+            handlerObj.AddComponent<AutoTranslatorHandler>();
+
+            Main.Logger.LogInfo($"Auto Translator queue system initialized. Active Engine: {ActiveEngine}");
         }
 
         // Method ini dipanggil oleh TextDumper
@@ -50,11 +60,20 @@ namespace AlaskaGoldFeverTranslator.Features
             {
                 TranslationTask task = _translationQueue.Dequeue();
 
-                // Jeda 2 detik untuk menghindari IP diblokir Google
+                // Jeda 2 detik untuk menghindari IP diblokir API
                 await Task.Delay(2000);
 
-                // Menerjemahkan teks MENTAH (yang masih ada angkanya) secara natural
-                string translatedText = await TranslatorEngine.GoogleTranslate.TranslateAsync(task.RawText, "en", "id");
+                string translatedText = null;
+
+                // [FITUR BARU] Mengeksekusi mesin terjemahan sesuai dengan pilihan yang sedang aktif
+                if (ActiveEngine == TranslationEngine.Google)
+                {
+                    translatedText = await TranslatorEngine.GoogleTranslate.TranslateAsync(task.RawText, "en", "id");
+                }
+                else if (ActiveEngine == TranslationEngine.MyMemory)
+                {
+                    translatedText = await TranslatorEngine.MyMemoryTranslate.TranslateAsync(task.RawText, "en", "id");
+                }
 
                 if (!string.IsNullOrEmpty(translatedText))
                 {
@@ -85,6 +104,24 @@ namespace AlaskaGoldFeverTranslator.Features
             }
 
             _isTranslating = false;
+        }
+    }
+
+    // [FITUR BARU] Handler untuk menangkap kombinasi tombol ganti mesin
+    public class AutoTranslatorHandler : MonoBehaviour
+    {
+        void Update()
+        {
+            // Cek jika tombol Shift Kanan ditahan dan tombol T ditekan
+            if (Input.GetKey(KeyCode.RightShift) && Input.GetKeyDown(KeyCode.T))
+            {
+                // Menukar mesin (Tukar (Toggle))
+                AutoTranslator.ActiveEngine = AutoTranslator.ActiveEngine == AutoTranslator.TranslationEngine.Google
+                    ? AutoTranslator.TranslationEngine.MyMemory
+                    : AutoTranslator.TranslationEngine.Google;
+
+                Main.Logger.LogInfo($"[AutoTranslator] 🔄 Translation Engine switched to: {AutoTranslator.ActiveEngine}");
+            }
         }
     }
 }

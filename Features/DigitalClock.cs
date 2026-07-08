@@ -9,19 +9,23 @@ namespace AlaskaGoldFeverTranslator.Features
     public static class DigitalClock
     {
         private static GameObject _clockObj;
+        private static Canvas _canvas; // [FIX] Kita gunakan Canvas untuk hide/show, bukan SetActive
         private static Text _localTimeText;
         private static Text _inGameTimeText;
 
         public static void Initialize()
         {
+            // [FIX] Otomatis menyalakan Otak Jam agar bebas error!
+            GameTimeManager.Initialize();
+
             _clockObj = new GameObject("Alaska_UI_DigitalClock");
             UnityEngine.Object.DontDestroyOnLoad(_clockObj);
-            _clockObj.SetActive(false);
             SceneManager.sceneLoaded += OnSceneLoaded;
 
-            Canvas canvas = _clockObj.AddComponent<Canvas>();
-            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-            canvas.sortingOrder = 9999;
+            _canvas = _clockObj.AddComponent<Canvas>();
+            _canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            _canvas.sortingOrder = 9999;
+            _canvas.enabled = false; // [FIX] Sembunyikan UI-nya saja, script tetap hidup!
 
             CanvasScaler scaler = _clockObj.AddComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
@@ -33,11 +37,8 @@ namespace AlaskaGoldFeverTranslator.Features
             Image bgImage = bgObj.AddComponent<Image>();
             bgImage.color = new Color(0.05f, 0.05f, 0.05f, 0.85f);
             RectTransform bgRt = bgObj.GetComponent<RectTransform>();
-            bgRt.anchorMin = new Vector2(0.5f, 1f);
-            bgRt.anchorMax = new Vector2(0.5f, 1f);
-            bgRt.pivot = new Vector2(0.5f, 1f);
-            bgRt.anchoredPosition = new Vector2(0, -60);
-            bgRt.sizeDelta = new Vector2(280, 60);
+            bgRt.anchorMin = new Vector2(0.5f, 1f); bgRt.anchorMax = new Vector2(0.5f, 1f); bgRt.pivot = new Vector2(0.5f, 1f);
+            bgRt.anchoredPosition = new Vector2(0, -60); bgRt.sizeDelta = new Vector2(280, 60);
 
             // PANEL KIRI (IN-GAME)
             GameObject leftPanel = new GameObject("LeftPanel");
@@ -65,16 +66,14 @@ namespace AlaskaGoldFeverTranslator.Features
 
         private static void OnSceneLoaded(Scene scene, LoadSceneMode mode)
         {
-#pragma warning disable
-            if (_clockObj != null)
-                _clockObj.SetActive(scene.buildIndex != 0 && !scene.name.ToLower().Contains("menu"));
+            if (_canvas != null)
+                _canvas.enabled = (scene.buildIndex != 0 && !scene.name.ToLower().Contains("menu"));
         }
 
         public static void UpdateUI()
         {
-            if (!_clockObj.activeSelf) return;
+            if (_canvas == null || !_canvas.enabled) return;
 
-            // Mengambil data dari GameTimeManager
             if (GameTimeManager.IsResolved)
                 _inGameTimeText.text = string.Format("{0:00}:{1:00}:{2:00}", GameTimeManager.Hours, GameTimeManager.Minutes, GameTimeManager.Seconds);
             else
@@ -85,20 +84,18 @@ namespace AlaskaGoldFeverTranslator.Features
 
         public static void Toggle()
         {
-            if (_clockObj != null) _clockObj.SetActive(!_clockObj.activeSelf);
+            if (_canvas != null) _canvas.enabled = !_canvas.enabled;
         }
 
         public static void Hide()
         {
-            if (_clockObj != null) _clockObj.SetActive(false);
+            if (_canvas != null) _canvas.enabled = false;
         }
 
         private static Text CreateTextUI(Transform parent, string name, string textContent, int fontSize, Color color, TextAnchor alignment, Vector2 anchorMin, Vector2 anchorMax, Vector2 pivot, Vector2 anchoredPos)
         {
-            GameObject obj = new GameObject(name);
-            obj.transform.SetParent(parent, false);
-            Text txt = obj.AddComponent<Text>();
-            txt.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
+            GameObject obj = new GameObject(name); obj.transform.SetParent(parent, false);
+            Text txt = obj.AddComponent<Text>(); txt.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
             txt.text = textContent; txt.fontSize = fontSize; txt.color = color; txt.alignment = alignment;
             Outline outline = obj.AddComponent<Outline>(); outline.effectColor = Color.black; outline.effectDistance = new Vector2(1, -1);
             RectTransform rt = txt.rectTransform; rt.anchorMin = anchorMin; rt.anchorMax = anchorMax; rt.pivot = pivot; rt.sizeDelta = Vector2.zero; rt.anchoredPosition = anchoredPos;
@@ -113,7 +110,7 @@ namespace AlaskaGoldFeverTranslator.Features
             DigitalClock.UpdateUI();
             if (Input.GetKeyDown(KeyCode.Home))
             {
-                AnalogClock.Hide(); // Sembunyikan yang Analog jika yang Digital dinyalakan
+                AnalogClock.Hide();
                 DigitalClock.Toggle();
             }
         }

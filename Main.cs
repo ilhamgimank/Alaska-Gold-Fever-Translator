@@ -1,77 +1,56 @@
-﻿// Main.cs (Initial initialization of the mod and BepInEx)
+﻿// Main.cs (Entry point utama BepInEx Mod)
 using BepInEx;
 using BepInEx.Logging;
 using HarmonyLib;
-using UnityEngine;
+using AlaskaGoldFeverTranslator.Managers;
+using AlaskaGoldFeverTranslator.Features;
+using AlaskaGoldFeverTranslator.Features.Dumpers;
+using AlaskaGoldFeverTranslator.Patches;
 
 namespace AlaskaGoldFeverTranslator
 {
-    // BepInEx metadata declaration
-    [BepInPlugin(PluginInfo.PLUGIN_GUID, PluginInfo.PLUGIN_NAME, PluginInfo.PLUGIN_VERSION)]
+    // Mengubah versi mod ke v0.2.20
+    [BepInPlugin("com.ilham.alaskatranslator", "Alaska Gold Fever Translator", "0.2.20")]
     public class Main : BaseUnityPlugin
     {
-        // Static structure for plugin info
-        public static class PluginInfo
-        {
-            public const string PLUGIN_GUID = "com.ilhamgimank.alaskagoldfever.translator";
-            public const string PLUGIN_NAME = "Alaska Gold Fever Translator";
-            public const string PLUGIN_VERSION = "0.2.18"; // Digital Clock Edition
-        }
-
-        // Static variables to be accessible from other classes
-        public static Main Instance { get; private set; }
-        internal new static ManualLogSource Logger { get; private set; }
-
-        // Harmony object to execute the dumper patch system
+        public static new ManualLogSource Logger;
         private Harmony _harmony;
 
         private void Awake()
         {
-            // Set instance and logger
-            Instance = this;
             Logger = base.Logger;
+            Logger.LogInfo("Plugin Alaska Gold Fever Translator v0.2.20 is loaded!");
 
-            Logger.LogInfo($"Plugin {PluginInfo.PLUGIN_NAME} is loaded!");
+            // 1. Inisialisasi Manajer Inti (Struktur Folder & Memori Teks/Gambar)
+            FileManager.Initialize();
+            TranslationManager.Initialize();
+            TextureManager.Initialize();
 
-            // Call Path Detector to get game info
-            Features.PathDetector.Initialize();
+            // 2. Inisialisasi Fitur Utama Latar Belakang
+            TextDumper.Initialize();
+            AutoTranslator.Initialize(); // Sudah termasuk sistem Shift Kanan + T
+            LiveUpdater.Initialize();
+            SceneScanner.Initialize();
+            PathDetector.Initialize();
 
-            // Call File Manager to create folder structure
-            Managers.FileManager.Initialize();
+            // 3. Inisialisasi Sistem Waktu & Jam UI In-Game
+            GameTimeManager.Initialize(); // Otak penyedot waktu In-Game
+            DigitalClock.Initialize();    // UI Jam Digital (Home)
+            AnalogClock.Initialize();     // UI Jam Analog (End)
 
-            // Call Text Dumper and Translation Manager
-            Features.TextDumper.Initialize();
-            Managers.TranslationManager.Initialize();
+            // 4. Menerapkan Semua Patch (Pencegatan Engine Unity)
+            _harmony = new Harmony("com.ilham.alaskatranslator");
 
-            // [FIX] Enable the previously forgotten Texture Manager!
-            Managers.TextureManager.Initialize();
-
-            // Call Scene Scanner
-            Features.SceneScanner.Initialize();
-
-            // Initialize Auto Translator & Live Updater
-            Features.AutoTranslator.Initialize();
-            Features.LiveUpdater.Initialize();
-
-            // [NEW FEATURE] Enable Web Scraper for Live Market Currency
-            Features.CurrencyConverter.Initialize();
-
-            // [NEW FEATURE] Inject Custom Real-World UI Clock
-            Features.DigitalClock.Initialize();
-
-            // Initialize Harmony and apply all standard UI dumpers
-            _harmony = new Harmony(PluginInfo.PLUGIN_GUID);
+            // Menerapkan patch yang menggunakan atribut [HarmonyPatch] secara otomatis
             _harmony.PatchAll();
-            Logger.LogInfo("Harmony successfully patched automatic UI dumpers.");
 
-            // Apply manual patches (Dynamic)
-            Features.Dumpers.FairyGUIDumper.ApplyPatch(_harmony);
-            Patches.TextPatch.ApplyPatch(_harmony);
+            // Menerapkan patch khusus (Dynamic AccessTools)
+            TextPatch.ApplyPatch(_harmony);
+            ImagePatch.ApplyPatch(_harmony);
+            TMPDumper.ApplyPatch(_harmony);
+            FairyGUIDumper.ApplyPatch(_harmony);
 
-            // [FIX] Enable Image Interceptor (Image Patch) into the game!
-            Patches.ImagePatch.ApplyPatch(_harmony);
-
-            Logger.LogInfo("Update v0.2.18 initialization complete. All Systems Active (Dev Mode Edition).");
+            Logger.LogInfo("All modules and patches have been successfully initialized! Ready to translate.");
         }
     }
 }

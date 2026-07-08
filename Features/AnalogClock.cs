@@ -9,6 +9,7 @@ namespace AlaskaGoldFeverTranslator.Features
     public static class AnalogClock
     {
         private static GameObject _clockObj;
+        private static Canvas _canvas; // [FIX] Kita gunakan Canvas untuk hide/show
         private static Text _localTimeText;
         private static Text _inGameTimeText;
         private static RectTransform _hourHandRt;
@@ -17,14 +18,17 @@ namespace AlaskaGoldFeverTranslator.Features
 
         public static void Initialize()
         {
+            // [FIX] Otomatis menyalakan Otak Jam agar bebas error!
+            GameTimeManager.Initialize();
+
             _clockObj = new GameObject("Alaska_UI_AnalogClock");
             UnityEngine.Object.DontDestroyOnLoad(_clockObj);
-            _clockObj.SetActive(false); // Default mati, dinyalakan pakai F12
             SceneManager.sceneLoaded += OnSceneLoaded;
 
-            Canvas canvas = _clockObj.AddComponent<Canvas>();
-            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-            canvas.sortingOrder = 9999;
+            _canvas = _clockObj.AddComponent<Canvas>();
+            _canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            _canvas.sortingOrder = 9999;
+            _canvas.enabled = false; // [FIX] Sembunyikan UI-nya saja, script tetap hidup!
 
             CanvasScaler scaler = _clockObj.AddComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
@@ -37,8 +41,7 @@ namespace AlaskaGoldFeverTranslator.Features
             bgImage.color = new Color(0.05f, 0.05f, 0.05f, 0.85f);
             RectTransform bgRt = bgObj.GetComponent<RectTransform>();
             bgRt.anchorMin = new Vector2(0.5f, 1f); bgRt.anchorMax = new Vector2(0.5f, 1f); bgRt.pivot = new Vector2(0.5f, 1f);
-            bgRt.anchoredPosition = new Vector2(0, -60);
-            bgRt.sizeDelta = new Vector2(320, 110);
+            bgRt.anchoredPosition = new Vector2(0, -60); bgRt.sizeDelta = new Vector2(320, 110);
 
             // PANEL KIRI (ANALOG)
             GameObject leftPanel = new GameObject("LeftPanel");
@@ -89,13 +92,12 @@ namespace AlaskaGoldFeverTranslator.Features
 
         private static void OnSceneLoaded(Scene scene, LoadSceneMode mode)
         {
-#pragma warning disable
-            if (_clockObj != null) _clockObj.SetActive(false); // Otomatis mati kalau ganti scene, biar rapi
+            if (_canvas != null) _canvas.enabled = false;
         }
 
         public static void UpdateUI()
         {
-            if (!_clockObj.activeSelf) return;
+            if (_canvas == null || !_canvas.enabled) return;
 
             if (GameTimeManager.IsResolved)
             {
@@ -119,12 +121,12 @@ namespace AlaskaGoldFeverTranslator.Features
 
         public static void Toggle()
         {
-            if (_clockObj != null) _clockObj.SetActive(!_clockObj.activeSelf);
+            if (_canvas != null) _canvas.enabled = !_canvas.enabled;
         }
 
         public static void Hide()
         {
-            if (_clockObj != null) _clockObj.SetActive(false);
+            if (_canvas != null) _canvas.enabled = false;
         }
 
         private static RectTransform CreateHandUI(Transform parent, string name, Vector2 size, Color color)
@@ -154,7 +156,7 @@ namespace AlaskaGoldFeverTranslator.Features
             AnalogClock.UpdateUI();
             if (Input.GetKeyDown(KeyCode.End))
             {
-                DigitalClock.Hide(); // Sembunyikan yang Digital jika yang Analog dinyalakan
+                DigitalClock.Hide();
                 AnalogClock.Toggle();
             }
         }
