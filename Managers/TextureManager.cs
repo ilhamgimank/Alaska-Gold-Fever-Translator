@@ -7,11 +7,10 @@ namespace AlaskaGoldFeverTranslator.Managers
 {
     public static class TextureManager
     {
-        // Cache untuk menyimpan sprite/gambar bahasa Indonesia yang sudah diload ke RAM
-#pragma warning disable
         private static Dictionary<string, Sprite> _translatedSprites = new Dictionary<string, Sprite>(System.StringComparer.OrdinalIgnoreCase);
+        // [FITUR BARU] Menyimpan Texture murni untuk RawImage (Kompas)
+        private static Dictionary<string, Texture2D> _translatedRawTextures = new Dictionary<string, Texture2D>(System.StringComparer.OrdinalIgnoreCase);
 
-        // Memori pencegah spam dump agar tidak membuat game lemot
         private static HashSet<string> _dumpedTextures = new HashSet<string>(System.StringComparer.OrdinalIgnoreCase);
 
         public static void Initialize()
@@ -20,10 +19,10 @@ namespace AlaskaGoldFeverTranslator.Managers
             Main.Logger.LogInfo("Texture Manager initialized.");
         }
 
-        // Memuat semua gambar .png dari folder Localization/.../Textures
         public static void LoadTranslatedTextures()
         {
             _translatedSprites.Clear();
+            _translatedRawTextures.Clear();
             string texPath = Path.Combine(FileManager.LocalizationPath, TranslationManager.CurrentLanguage, "Textures");
 
             if (Directory.Exists(texPath))
@@ -32,24 +31,12 @@ namespace AlaskaGoldFeverTranslator.Managers
                 foreach (string file in files)
                 {
                     string fileName = Path.GetFileNameWithoutExtension(file);
-                    Sprite customSprite = LoadSpriteFromFile(file);
-
-                    if (customSprite != null)
-                    {
-                        // Set nama sprite agar sama dengan aslinya
-                        customSprite.name = fileName;
-                        _translatedSprites[fileName] = customSprite;
-                    }
+                    LoadTextureFromFile(file, fileName);
                 }
-                Main.Logger.LogInfo($"Loaded {_translatedSprites.Count} custom textures for language: {TranslationManager.CurrentLanguage}.");
+                Main.Logger.LogInfo($"Loaded {_translatedSprites.Count} custom textures (Sprites & Raw) for language: {TranslationManager.CurrentLanguage}.");
             }
         }
 
-        // ====================================================================================
-        // TRIK BYPASS JEDI (REFLECTION) v0.2.6
-        // Mengeksekusi LoadImage dan EncodeToPNG secara dinamis dari memori Unity 
-        // menggunakan HarmonyLib.AccessTools agar 100% akurat menemukan classnya!
-        // ====================================================================================
         private static bool InvokeLoadImage(Texture2D tex, byte[] data)
         {
             try
@@ -59,10 +46,6 @@ namespace AlaskaGoldFeverTranslator.Managers
                 {
                     var method = HarmonyLib.AccessTools.Method(type, "LoadImage", new System.Type[] { typeof(Texture2D), typeof(byte[]) });
                     if (method != null) return (bool)method.Invoke(null, new object[] { tex, data });
-                }
-                else
-                {
-                    Main.Logger.LogError("[Bypass] Failed to find UnityEngine.ImageConversion class!");
                 }
             }
             catch (System.Exception ex) { Main.Logger.LogError("[Bypass] LoadImage Error: " + ex.Message); }
@@ -79,101 +62,123 @@ namespace AlaskaGoldFeverTranslator.Managers
                     var method = HarmonyLib.AccessTools.Method(type, "EncodeToPNG", new System.Type[] { typeof(Texture2D) });
                     if (method != null) return (byte[])method.Invoke(null, new object[] { tex });
                 }
-                else
-                {
-                    Main.Logger.LogError("[Bypass] Failed to find UnityEngine.ImageConversion class!");
-                }
             }
             catch (System.Exception ex) { Main.Logger.LogError("[Bypass] EncodeToPNG Error: " + ex.Message); }
             return null;
         }
-        // ====================================================================================
 
-        // Fungsi magis untuk mengubah file .png lokal di harddisk menjadi Objek Sprite Unity
-        private static Sprite LoadSpriteFromFile(string path)
+        private static void LoadTextureFromFile(string path, string fileName)
         {
             try
             {
                 byte[] fileData = File.ReadAllBytes(path);
-                // Membuat kanvas tekstur kosong
                 Texture2D tex = new Texture2D(2, 2, TextureFormat.RGBA32, false);
 
-                // Menggunakan fungsi Bypass untuk LoadImage
                 if (InvokeLoadImage(tex, fileData))
                 {
                     tex.filterMode = FilterMode.Bilinear;
                     tex.wrapMode = TextureWrapMode.Clamp;
+                    tex.name = fileName;
 
-                    // Mengubah Texture2D menjadi Sprite UI (Pivot di tengah 0.5, 0.5)
-                    return Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f), 100f, 0, SpriteMeshType.FullRect);
+                    // Simpan sebagai Raw Texture (Untuk RawImage Kompas)
+                    _translatedRawTextures[fileName] = tex;
+
+                    // Simpan sebagai Sprite (Untuk Image standar)
+                    Sprite sprite = Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f), 100f, 0, SpriteMeshType.FullRect);
+                    sprite.name = fileName;
+                    _translatedSprites[fileName] = sprite;
                 }
             }
             catch (System.Exception ex)
             {
                 Main.Logger.LogError($"[TextureManager] Error loading PNG {Path.GetFileName(path)}: {ex.Message}");
             }
-            return null;
         }
 
-        // Cek apakah gambar yang dirender game punya versi Indonesianya
+        // [FITUR BARU] Pembersih karakter ilegal agar Windows tidak error saat menamai file!
+        private static string SanitizeName(string name)
+        {
+            if (string.IsNullOrEmpty(name)) return "";
+            string clean = name.Replace("(Clone)", "").Trim();
+
+            // Mengubah semua karakter terlarang windows (: ? < > * dll) menjadi garis bawah (_)
+            foreach (char c in Path.GetInvalidFileNameChars())
+            {
+                clean = clean.Replace(c, '_');
+            }
+            return clean;
+        }
+
         public static bool TryGetTranslatedSprite(string spriteName, out Sprite translatedSprite)
         {
             translatedSprite = null;
             if (string.IsNullOrEmpty(spriteName)) return false;
-
-            // Membersihkan nama dari embel-embel cloning bawaan engine
-            string cleanName = spriteName.Replace("(Clone)", "").Trim();
-            return _translatedSprites.TryGetValue(cleanName, out translatedSprite);
+            // [UPDATE] Gunakan SanitizeName
+            return _translatedSprites.TryGetValue(SanitizeName(spriteName), out translatedSprite);
         }
 
-        // Fungsi Dumper: Menyalin tekstur dari GPU ke Harddisk
-        public static void DumpTexture(Sprite sprite)
+        public static bool TryGetTranslatedTexture(string texName, out Texture translatedTex)
+        {
+            translatedTex = null;
+            if (string.IsNullOrEmpty(texName)) return false;
+            // [UPDATE] Gunakan SanitizeName
+            if (_translatedRawTextures.TryGetValue(SanitizeName(texName), out Texture2D t2d))
+            {
+                translatedTex = t2d;
+                return true;
+            }
+            return false;
+        }
+
+        public static void DumpSprite(Sprite sprite)
         {
             if (sprite == null || sprite.texture == null) return;
+            DumpTextureInternal(sprite.texture, sprite.name);
+        }
 
-            string cleanName = sprite.name.Replace("(Clone)", "").Trim();
+        public static void DumpRawTexture(Texture texture)
+        {
+            if (texture == null) return;
+            DumpTextureInternal(texture, texture.name);
+        }
 
-            // Memblokir tekstur UI polosan bawaan engine agar folder dump tidak kotor
-            if (cleanName == "Background" || cleanName == "UISprite" || cleanName == "Knob" ||
+        private static void DumpTextureInternal(Texture texture, string objectName)
+        {
+            // [UPDATE] Gunakan nama yang sudah bersih dan aman untuk Windows
+            string cleanName = SanitizeName(objectName);
+
+            if (string.IsNullOrEmpty(cleanName) || cleanName == "Background" || cleanName == "UISprite" || cleanName == "Knob" ||
                 cleanName == "UIMask" || cleanName == "Checkmark" || cleanName == "DropdownArrow" || cleanName.StartsWith("Unity"))
                 return;
 
-            // Jangan buang waktu jika gambar sudah ada di memori
             if (_dumpedTextures.Contains(cleanName)) return;
             _dumpedTextures.Add(cleanName);
 
             string outPath = Path.Combine(FileManager.DefaultTexturesPath, $"{cleanName}.png");
             if (File.Exists(outPath)) return;
 
-            // TRIK BYPASS TINGKAT TINGGI: Meng-copy tekstur via RenderTexture GPU
-            // (Karena kebanyakan gambar aslinya disetting "Not Readable" oleh developer game)
             try
             {
-                // [PERBAIKAN] Gunakan ARGB32 agar background transparan (Alpha) pada gambar UI tidak berubah jadi hitam!
-                RenderTexture tmp = RenderTexture.GetTemporary(sprite.texture.width, sprite.texture.height, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Linear);
-                Graphics.Blit(sprite.texture, tmp);
+                RenderTexture tmp = RenderTexture.GetTemporary(texture.width, texture.height, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Linear);
+                Graphics.Blit(texture, tmp);
 
                 RenderTexture previous = RenderTexture.active;
                 RenderTexture.active = tmp;
 
-                // [PERBAIKAN] Format Texture2D juga harus mendukung transparansi (RGBA32)
-                Texture2D myTexture2D = new Texture2D(sprite.texture.width, sprite.texture.height, TextureFormat.RGBA32, false);
+                Texture2D myTexture2D = new Texture2D(texture.width, texture.height, TextureFormat.RGBA32, false);
                 myTexture2D.ReadPixels(new Rect(0, 0, tmp.width, tmp.height), 0, 0);
                 myTexture2D.Apply();
 
                 RenderTexture.active = previous;
                 RenderTexture.ReleaseTemporary(tmp);
 
-                // Ubah menjadi PNG biner menggunakan Bypass
                 byte[] bytes = InvokeEncodeToPNG(myTexture2D);
-
                 if (bytes != null)
                 {
                     File.WriteAllBytes(outPath, bytes);
                     Main.Logger.LogInfo($"[Texture Dumped] \"{cleanName}.png\" saved to [Default Textures]");
                 }
-
-                Object.Destroy(myTexture2D); // Cegah Memory Leak
+                Object.Destroy(myTexture2D);
             }
             catch (System.Exception ex)
             {

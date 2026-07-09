@@ -60,8 +60,8 @@ namespace AlaskaGoldFeverTranslator.Features
             {
                 TranslationTask task = _translationQueue.Dequeue();
 
-                // Jeda 2 detik untuk menghindari IP diblokir API
-                await Task.Delay(2000);
+                // Jeda 3 detik untuk menghindari IP diblokir API
+                await Task.Delay(3000);
 
                 string translatedText = null;
 

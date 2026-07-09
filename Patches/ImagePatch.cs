@@ -12,67 +12,60 @@ namespace AlaskaGoldFeverTranslator.Patches
         {
             // 1. Patch ke Setingan Sprite (UGUI Image)
             var imageSetter = AccessTools.PropertySetter(typeof(Image), "sprite");
-            if (imageSetter != null)
-            {
-                harmony.Patch(imageSetter, prefix: new HarmonyMethod(typeof(ImagePatch), nameof(ImageSpritePrefix)));
-            }
+            if (imageSetter != null) harmony.Patch(imageSetter, prefix: new HarmonyMethod(typeof(ImagePatch), nameof(ImageSpritePrefix)));
 
-            // 2. Patch saat UI Gambar dinyalakan ke layar (Mengakali gambar Hardcoded di Prefab)
             var imageOnEnable = AccessTools.Method(typeof(Image), "OnEnable");
-            if (imageOnEnable != null)
-            {
-                harmony.Patch(imageOnEnable, postfix: new HarmonyMethod(typeof(ImagePatch), nameof(ImageOnEnablePostfix)));
-            }
+            if (imageOnEnable != null) harmony.Patch(imageOnEnable, postfix: new HarmonyMethod(typeof(ImagePatch), nameof(ImageOnEnablePostfix)));
 
-            // 3. Patch ke SpriteRenderer (Untuk gambar dunia 2D/3D non-UI)
+            // 2. Patch ke SpriteRenderer (Untuk gambar dunia 2D/3D non-UI)
             var srSetter = AccessTools.PropertySetter(typeof(SpriteRenderer), "sprite");
-            if (srSetter != null)
-            {
-                harmony.Patch(srSetter, prefix: new HarmonyMethod(typeof(ImagePatch), nameof(SpriteRendererPrefix)));
-            }
+            if (srSetter != null) harmony.Patch(srSetter, prefix: new HarmonyMethod(typeof(ImagePatch), nameof(SpriteRendererPrefix)));
 
-            Main.Logger.LogInfo("Texture Replacer & Dumper patches applied successfully.");
+            // 3. [FITUR BARU] Patch Khusus RawImage (Untuk menangkap Texture Kompas!)
+            var rawImageSetter = AccessTools.PropertySetter(typeof(RawImage), "texture");
+            if (rawImageSetter != null) harmony.Patch(rawImageSetter, prefix: new HarmonyMethod(typeof(ImagePatch), nameof(RawImageTexturePrefix)));
+
+            var rawImageOnEnable = AccessTools.Method(typeof(RawImage), "OnEnable");
+            if (rawImageOnEnable != null) harmony.Patch(rawImageOnEnable, postfix: new HarmonyMethod(typeof(ImagePatch), nameof(RawImageOnEnablePostfix)));
+
+            Main.Logger.LogInfo("Texture Replacer (Sprite & RawImage) patches applied successfully.");
         }
 
-        // Mengeksekusi Dumper dan Translasi SEBELUM gambar diset oleh game
+        // --- SPRITE PATCHES ---
         private static void ImageSpritePrefix(ref Sprite value)
         {
             if (value == null) return;
-
-            // Merekam gambar aslinya (Bypass jika sudah tersimpan)
-            TextureManager.DumpTexture(value);
-
-            // Mengganti dengan gambar mod jika tersedia
-            if (TextureManager.TryGetTranslatedSprite(value.name, out Sprite translatedSprite))
-            {
-                value = translatedSprite;
-            }
+            TextureManager.DumpSprite(value);
+            if (TextureManager.TryGetTranslatedSprite(value.name, out Sprite translatedSprite)) value = translatedSprite;
         }
 
-        // Mengeksekusi penyisipan pada gambar yang sudah menempel di layar dari awal
         private static void ImageOnEnablePostfix(Image __instance)
         {
             if (__instance == null || __instance.sprite == null) return;
-
-            TextureManager.DumpTexture(__instance.sprite);
-
-            if (TextureManager.TryGetTranslatedSprite(__instance.sprite.name, out Sprite translatedSprite))
-            {
-                __instance.sprite = translatedSprite;
-            }
+            TextureManager.DumpSprite(__instance.sprite);
+            if (TextureManager.TryGetTranslatedSprite(__instance.sprite.name, out Sprite translatedSprite)) __instance.sprite = translatedSprite;
         }
 
-        // Mengeksekusi penggantian Sprite pada objek dunia
         private static void SpriteRendererPrefix(ref Sprite value)
         {
             if (value == null) return;
+            TextureManager.DumpSprite(value);
+            if (TextureManager.TryGetTranslatedSprite(value.name, out Sprite translatedSprite)) value = translatedSprite;
+        }
 
-            TextureManager.DumpTexture(value);
+        // --- RAW IMAGE PATCHES (KOMPAS) ---
+        private static void RawImageTexturePrefix(ref Texture value)
+        {
+            if (value == null) return;
+            TextureManager.DumpRawTexture(value);
+            if (TextureManager.TryGetTranslatedTexture(value.name, out Texture translatedTex)) value = translatedTex;
+        }
 
-            if (TextureManager.TryGetTranslatedSprite(value.name, out Sprite translatedSprite))
-            {
-                value = translatedSprite;
-            }
+        private static void RawImageOnEnablePostfix(RawImage __instance)
+        {
+            if (__instance == null || __instance.texture == null) return;
+            TextureManager.DumpRawTexture(__instance.texture);
+            if (TextureManager.TryGetTranslatedTexture(__instance.texture.name, out Texture translatedTex)) __instance.texture = translatedTex;
         }
     }
 }

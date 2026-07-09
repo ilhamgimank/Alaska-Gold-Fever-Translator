@@ -12,9 +12,10 @@ namespace AlaskaGoldFeverTranslator.Features
         // Nilai fallback (cadangan) jika PC offline atau Google Finance berubah struktur
         private static double _usdToIdrRate = 17972.0;
 
-        // Regex untuk menangkap $10, $ 100.50, $1,000, 10,00$, dll
+        // [PERBAIKAN BUG] Hapus grup ke-3 yang menangkap "angka desimal polos". 
+        // Sekarang hanya menangkap angka yang benar-benar ada simbol $ atau USD-nya!
         private static readonly Regex CurrencyRegex = new Regex(
-            @"(?:(?:\$|USD)\s*([-\d,\.]+))|(?:([-\d,\.]+)\s*(?:\$|USD))|^(?:\s*)([-]?\d{1,3}(?:[.,]\d{3})*[.,]\d{2})(?:\s*)$",
+            @"(?:(?:\$|USD)\s*([-\d,\.]+))|(?:([-\d,\.]+)\s*(?:\$|USD))",
             RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
         // [FITUR BARU] Helper untuk membaca angka dengan format koma/titik yang berantakan (Eropa vs US)
@@ -112,8 +113,8 @@ namespace AlaskaGoldFeverTranslator.Features
                 text.IndexOf("bor", StringComparison.OrdinalIgnoreCase) >= 0 ||
                 text.IndexOf("drill", StringComparison.OrdinalIgnoreCase) >= 0)
             {
-                // Mencari pola seperti (304,89/500,00)
-                text = Regex.Replace(text, @"\(([\d,\.]+)\s*/\s*([\d,\.]+)\)", match =>
+                // [PERBAIKAN] Mencari pola seperti (304,89/500,00) ATAU yang ada dollarnya ($304.89 / $500.00)
+                text = Regex.Replace(text, @"\(\s*(?:\$|USD)?\s*([\d,\.]+)\s*/\s*(?:\$|USD)?\s*([\d,\.]+)\s*\)", match =>
                 {
                     if (TryParseFlexibleNumber(match.Groups[1].Value, out double val1) &&
                         TryParseFlexibleNumber(match.Groups[2].Value, out double val2))
