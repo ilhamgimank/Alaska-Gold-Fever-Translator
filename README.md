@@ -1,6 +1,6 @@
 # ⛏️ Alaska Gold Fever Translator Mod
 
-![Mod Version](https://img.shields.io/badge/Version-0.1.1-brightgreen?style=for-the-badge)
+![Mod Version](https://img.shields.io/badge/Version-0.2.20-brightgreen?style=for-the-badge)
 ![BepInEx](https://img.shields.io/badge/Requires-BepInEx_5.4.23.5-blue?style=for-the-badge)
 ![Platform](https://img.shields.io/badge/Platform-Windows-lightgrey?style=for-the-badge)
 ![Game Version](https://img.shields.io/badge/Version-0.1.1-darkblue?style=for-the-badge)
