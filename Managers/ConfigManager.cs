@@ -46,6 +46,7 @@ namespace AlaskaGoldFeverTranslator.Managers
         // Fungsi khusus untuk dipanggil jika ada perubahan dari dalam game (Hotkey)
         public static void Save()
         {
+#pragma warning disable
             if (Config != null) Config.Save();
         }
     }

@@ -23,7 +23,7 @@ namespace AlaskaGoldFeverTranslator.Managers
 
             LoadTranslations();
 
-            Main.Logger.LogInfo("Translation Manager initialized (Clean Stable Version).");
+            Main.Logger.LogInfo("Translation Manager initialized (With Smart Merge Save).");
         }
 
         public static void LoadTranslations()
@@ -67,7 +67,6 @@ namespace AlaskaGoldFeverTranslator.Managers
                     }
                 }
 
-                SaveTranslationsToFile();
                 Main.Logger.LogInfo($"Loaded {TranslatedStrings.Count} static strings and {TranslatedRegexs.Count} regex patterns.");
             }
         }
@@ -162,6 +161,30 @@ namespace AlaskaGoldFeverTranslator.Managers
             lock (_lock)
             {
                 string path = Path.Combine(FileManager.LocalizationPath, CurrentLanguage, "Strings", "translation_strings.json");
+
+                // [SMART MERGE] Baca isi Hardisk dulu sebelum nimpa, untuk mengamankan ketikan manual player!
+                if (File.Exists(path))
+                {
+                    try
+                    {
+                        string json = File.ReadAllText(path, System.Text.Encoding.UTF8);
+                        Dictionary<string, string> diskDict = new Dictionary<string, string>(System.StringComparer.OrdinalIgnoreCase);
+                        ParseSimpleJson(json, diskDict);
+
+                        foreach (var kvp in diskDict)
+                        {
+                            // Masukkan paksa ke RAM mod. Jika ada perbedaan, prioritas utama adalah yang diketik di Notepad!
+                            TranslatedStrings[kvp.Key] = kvp.Value;
+                            TranslatedValues.Add(kvp.Value);
+                        }
+                    }
+                    catch (System.Exception ex)
+                    {
+                        Main.Logger.LogError("[TranslationManager] Smart Merge Failed: " + ex.Message);
+                    }
+                }
+
+                // Baru deh kita simpan semua (Gabungan RAM + Notepad)
                 WriteDictToJson(path, TranslatedStrings);
             }
         }
@@ -171,6 +194,28 @@ namespace AlaskaGoldFeverTranslator.Managers
             lock (_lock)
             {
                 string path = Path.Combine(FileManager.LocalizationPath, CurrentLanguage, "Strings", "translation_regexs.json");
+
+                // [SMART MERGE]
+                if (File.Exists(path))
+                {
+                    try
+                    {
+                        string json = File.ReadAllText(path, System.Text.Encoding.UTF8);
+                        Dictionary<string, string> diskDict = new Dictionary<string, string>(System.StringComparer.OrdinalIgnoreCase);
+                        ParseSimpleJson(json, diskDict);
+
+                        foreach (var kvp in diskDict)
+                        {
+                            TranslatedRegexs[kvp.Key] = kvp.Value;
+                            RegisterRegexValuePattern(kvp.Value);
+                        }
+                    }
+                    catch (System.Exception ex)
+                    {
+                        Main.Logger.LogError("[TranslationManager] Smart Merge Regex Failed: " + ex.Message);
+                    }
+                }
+
                 WriteDictToJson(path, TranslatedRegexs);
             }
         }
