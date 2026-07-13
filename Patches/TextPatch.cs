@@ -15,17 +15,22 @@ namespace AlaskaGoldFeverTranslator.Patches
 #pragma warning disable
         static void Prefix(Text __instance, ref string value)
         {
-            if (string.IsNullOrEmpty(value)) return;
-
-            TextDumper.DumpString(value, "UI-Text", false);
-
-            if (TranslationManager.TryGetTranslation(value, out string translatedText) ||
-                TranslationManager.TryGetRegexTranslation(value, out translatedText))
+            try
             {
-                value = translatedText;
-            }
+                if (string.IsNullOrEmpty(value)) return;
 
-            value = CurrencyConverter.Convert(value);
+                TextDumper.DumpString(value, "UI-Text", false);
+
+                if (TranslationManager.TryGetTranslation(value, out string translatedText) ||
+                    TranslationManager.TryGetRegexTranslation(value, out translatedText))
+                {
+                    value = translatedText;
+                }
+
+                value = CurrencyConverter.Convert(value);
+            }
+            // [FIX] Tangkap semua error diam-diam agar tidak merusak Dropdown game!
+            catch { }
         }
     }
 
@@ -83,7 +88,7 @@ namespace AlaskaGoldFeverTranslator.Patches
 
                 var catchMethod = typeof(TextPatch).GetMethod(nameof(CatchPrefabText), BindingFlags.Static | BindingFlags.NonPublic);
 
-                // [FIX] Hanya gunakan OnEnable! Awake dan Start dihapus agar Dropdown menu tidak crash!
+                // Hanya gunakan OnEnable! Awake dan Start dihapus agar Dropdown menu tidak crash!
                 MethodInfo[] lifecycleMethods = {
                     AccessTools.Method(tmpTextType, "OnEnable")
                 };
@@ -106,32 +111,40 @@ namespace AlaskaGoldFeverTranslator.Patches
 
         private static void TextSetterPrefix(Component __instance, ref string value)
         {
-            if (string.IsNullOrEmpty(value)) return;
-
-            TextDumper.DumpString(value, "TMP-Text", false);
-
-            if (TranslationManager.TryGetTranslation(value, out string translatedText) ||
-                TranslationManager.TryGetRegexTranslation(value, out translatedText))
+            try
             {
-                value = translatedText;
-            }
+                if (string.IsNullOrEmpty(value)) return;
 
-            value = CurrencyConverter.Convert(value);
+                TextDumper.DumpString(value, "TMP-Text", false);
+
+                if (TranslationManager.TryGetTranslation(value, out string translatedText) ||
+                    TranslationManager.TryGetRegexTranslation(value, out translatedText))
+                {
+                    value = translatedText;
+                }
+
+                value = CurrencyConverter.Convert(value);
+            }
+            catch { }
         }
 
         private static void SetTextPrefix(Component __instance, ref string __0)
         {
-            if (string.IsNullOrEmpty(__0)) return;
-
-            TextDumper.DumpString(__0, "TMP-Text", false);
-
-            if (TranslationManager.TryGetTranslation(__0, out string translatedText) ||
-                TranslationManager.TryGetRegexTranslation(__0, out translatedText))
+            try
             {
-                __0 = translatedText;
-            }
+                if (string.IsNullOrEmpty(__0)) return;
 
-            __0 = CurrencyConverter.Convert(__0);
+                TextDumper.DumpString(__0, "TMP-Text", false);
+
+                if (TranslationManager.TryGetTranslation(__0, out string translatedText) ||
+                    TranslationManager.TryGetRegexTranslation(__0, out translatedText))
+                {
+                    __0 = translatedText;
+                }
+
+                __0 = CurrencyConverter.Convert(__0);
+            }
+            catch { }
         }
 
         private static void CatchPrefabText(Component __instance)

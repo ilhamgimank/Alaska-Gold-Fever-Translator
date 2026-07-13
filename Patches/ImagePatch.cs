@@ -1,5 +1,4 @@
-﻿// Patches/ImagePatch.cs (Fitur untuk mencegat gambar yang diload ke layar)
-using HarmonyLib;
+﻿using HarmonyLib;
 using UnityEngine;
 using UnityEngine.UI;
 using AlaskaGoldFeverTranslator.Managers;
@@ -21,7 +20,7 @@ namespace AlaskaGoldFeverTranslator.Patches
             var srSetter = AccessTools.PropertySetter(typeof(SpriteRenderer), "sprite");
             if (srSetter != null) harmony.Patch(srSetter, prefix: new HarmonyMethod(typeof(ImagePatch), nameof(SpriteRendererPrefix)));
 
-            // 3. [FITUR BARU] Patch Khusus RawImage (Untuk menangkap Texture Kompas!)
+            // 3. Patch Khusus RawImage (Untuk menangkap Texture Kompas!)
             var rawImageSetter = AccessTools.PropertySetter(typeof(RawImage), "texture");
             if (rawImageSetter != null) harmony.Patch(rawImageSetter, prefix: new HarmonyMethod(typeof(ImagePatch), nameof(RawImageTexturePrefix)));
 
@@ -34,38 +33,58 @@ namespace AlaskaGoldFeverTranslator.Patches
         // --- SPRITE PATCHES ---
         private static void ImageSpritePrefix(ref Sprite value)
         {
-            if (value == null) return;
-            TextureManager.DumpSprite(value);
-            if (TextureManager.TryGetTranslatedSprite(value.name, out Sprite translatedSprite)) value = translatedSprite;
+            try
+            {
+                if (value == null) return;
+                TextureManager.DumpSprite(value);
+                if (TextureManager.TryGetTranslatedSprite(value.name, out Sprite translatedSprite)) value = translatedSprite;
+            }
+            catch { }
         }
 
         private static void ImageOnEnablePostfix(Image __instance)
         {
-            if (__instance == null || __instance.sprite == null) return;
-            TextureManager.DumpSprite(__instance.sprite);
-            if (TextureManager.TryGetTranslatedSprite(__instance.sprite.name, out Sprite translatedSprite)) __instance.sprite = translatedSprite;
+            try
+            {
+                if (__instance == null || __instance.sprite == null) return;
+                TextureManager.DumpSprite(__instance.sprite);
+                if (TextureManager.TryGetTranslatedSprite(__instance.sprite.name, out Sprite translatedSprite)) __instance.sprite = translatedSprite;
+            }
+            catch { }
         }
 
         private static void SpriteRendererPrefix(ref Sprite value)
         {
-            if (value == null) return;
-            TextureManager.DumpSprite(value);
-            if (TextureManager.TryGetTranslatedSprite(value.name, out Sprite translatedSprite)) value = translatedSprite;
+            try
+            {
+                if (value == null) return;
+                TextureManager.DumpSprite(value);
+                if (TextureManager.TryGetTranslatedSprite(value.name, out Sprite translatedSprite)) value = translatedSprite;
+            }
+            catch { }
         }
 
         // --- RAW IMAGE PATCHES (KOMPAS) ---
         private static void RawImageTexturePrefix(ref Texture value)
         {
-            if (value == null) return;
-            TextureManager.DumpRawTexture(value);
-            if (TextureManager.TryGetTranslatedTexture(value.name, out Texture translatedTex)) value = translatedTex;
+            try
+            {
+                if (value == null) return;
+                TextureManager.DumpRawTexture(value);
+                if (TextureManager.TryGetTranslatedTexture(value.name, out Texture translatedTex)) value = translatedTex;
+            }
+            catch { }
         }
 
         private static void RawImageOnEnablePostfix(RawImage __instance)
         {
-            if (__instance == null || __instance.texture == null) return;
-            TextureManager.DumpRawTexture(__instance.texture);
-            if (TextureManager.TryGetTranslatedTexture(__instance.texture.name, out Texture translatedTex)) __instance.texture = translatedTex;
+            try
+            {
+                if (__instance == null || __instance.texture == null) return;
+                TextureManager.DumpRawTexture(__instance.texture);
+                if (TextureManager.TryGetTranslatedTexture(__instance.texture.name, out Texture translatedTex)) __instance.texture = translatedTex;
+            }
+            catch { }
         }
     }
 }
