@@ -18,7 +18,6 @@ namespace AlaskaGoldFeverTranslator.Patches
             try
             {
                 if (string.IsNullOrEmpty(value)) return;
-
                 TextDumper.DumpString(value, "UI-Text", false);
 
                 if (TranslationManager.TryGetTranslation(value, out string translatedText) ||
@@ -26,10 +25,8 @@ namespace AlaskaGoldFeverTranslator.Patches
                 {
                     value = translatedText;
                 }
-
                 value = CurrencyConverter.Convert(value);
             }
-            // [FIX] Tangkap semua error diam-diam agar tidak merusak Dropdown game!
             catch { }
         }
     }
@@ -43,7 +40,6 @@ namespace AlaskaGoldFeverTranslator.Patches
             try
             {
                 if (__instance == null || string.IsNullOrEmpty(__instance.text)) return;
-
                 TextDumper.DumpString(__instance.text, "UI-Prefab", false);
 
                 string currentText = __instance.text;
@@ -52,12 +48,28 @@ namespace AlaskaGoldFeverTranslator.Patches
                 {
                     currentText = translatedText;
                 }
-
                 currentText = CurrencyConverter.Convert(currentText);
 
                 if (__instance.text != currentText)
                 {
                     __instance.text = currentText;
+                }
+            }
+            catch { }
+        }
+    }
+
+    // [ILUSI GETTER] Patch Getter UGUI agar Game mengira teks masih bahasa Inggris!
+    [HarmonyPatch(typeof(Text), "text", MethodType.Getter)]
+    public static class UGUITextGetterPatch
+    {
+        static void Postfix(ref string __result)
+        {
+            try
+            {
+                if (!string.IsNullOrEmpty(__result) && TranslationManager.ReverseStrings.TryGetValue(__result, out string originalText))
+                {
+                    __result = originalText;
                 }
             }
             catch { }
@@ -72,6 +84,7 @@ namespace AlaskaGoldFeverTranslator.Patches
             var tmpTextType = AccessTools.TypeByName("TMPro.TMP_Text");
             if (tmpTextType != null)
             {
+                // Patch Setter
                 var setter = AccessTools.PropertySetter(tmpTextType, "text");
                 if (setter != null)
                 {
@@ -86,19 +99,21 @@ namespace AlaskaGoldFeverTranslator.Patches
                     harmony.Patch(setTextMethod, prefix: new HarmonyMethod(prefixSetText));
                 }
 
+                // Patch OnEnable
                 var catchMethod = typeof(TextPatch).GetMethod(nameof(CatchPrefabText), BindingFlags.Static | BindingFlags.NonPublic);
-
-                // Hanya gunakan OnEnable! Awake dan Start dihapus agar Dropdown menu tidak crash!
-                MethodInfo[] lifecycleMethods = {
-                    AccessTools.Method(tmpTextType, "OnEnable")
-                };
+                MethodInfo[] lifecycleMethods = { AccessTools.Method(tmpTextType, "OnEnable") };
 
                 foreach (var method in lifecycleMethods)
                 {
-                    if (method != null)
-                    {
-                        harmony.Patch(method, postfix: new HarmonyMethod(catchMethod));
-                    }
+                    if (method != null) harmony.Patch(method, postfix: new HarmonyMethod(catchMethod));
+                }
+
+                // [ILUSI GETTER] Patch Getter TMP
+                var getter = AccessTools.PropertyGetter(tmpTextType, "text");
+                if (getter != null)
+                {
+                    var postfixGetter = typeof(TextPatch).GetMethod(nameof(TextGetterPostfix), BindingFlags.Static | BindingFlags.NonPublic);
+                    harmony.Patch(getter, postfix: new HarmonyMethod(postfixGetter));
                 }
 
                 Main.Logger.LogInfo("Extreme TMP Translation & Real-time Dumper Patches applied successfully.");
@@ -109,12 +124,23 @@ namespace AlaskaGoldFeverTranslator.Patches
             }
         }
 
+        private static void TextGetterPostfix(ref string __result)
+        {
+            try
+            {
+                if (!string.IsNullOrEmpty(__result) && TranslationManager.ReverseStrings.TryGetValue(__result, out string originalText))
+                {
+                    __result = originalText;
+                }
+            }
+            catch { }
+        }
+
         private static void TextSetterPrefix(Component __instance, ref string value)
         {
             try
             {
                 if (string.IsNullOrEmpty(value)) return;
-
                 TextDumper.DumpString(value, "TMP-Text", false);
 
                 if (TranslationManager.TryGetTranslation(value, out string translatedText) ||
@@ -122,7 +148,6 @@ namespace AlaskaGoldFeverTranslator.Patches
                 {
                     value = translatedText;
                 }
-
                 value = CurrencyConverter.Convert(value);
             }
             catch { }
@@ -133,7 +158,6 @@ namespace AlaskaGoldFeverTranslator.Patches
             try
             {
                 if (string.IsNullOrEmpty(__0)) return;
-
                 TextDumper.DumpString(__0, "TMP-Text", false);
 
                 if (TranslationManager.TryGetTranslation(__0, out string translatedText) ||
@@ -141,7 +165,6 @@ namespace AlaskaGoldFeverTranslator.Patches
                 {
                     __0 = translatedText;
                 }
-
                 __0 = CurrencyConverter.Convert(__0);
             }
             catch { }
@@ -150,7 +173,6 @@ namespace AlaskaGoldFeverTranslator.Patches
         private static void CatchPrefabText(Component __instance)
         {
             if (__instance == null) return;
-
             try
             {
                 var prop = __instance.GetType().GetProperty("text");
@@ -167,7 +189,6 @@ namespace AlaskaGoldFeverTranslator.Patches
                         {
                             newText = translatedText;
                         }
-
                         newText = CurrencyConverter.Convert(newText);
 
                         if (originalText != newText)

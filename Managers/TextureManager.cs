@@ -7,6 +7,7 @@ namespace AlaskaGoldFeverTranslator.Managers
 {
     public static class TextureManager
     {
+#pragma warning disable
         private static Dictionary<string, Sprite> _translatedSprites = new Dictionary<string, Sprite>(System.StringComparer.OrdinalIgnoreCase);
         // Menyimpan Texture murni untuk RawImage (Kompas)
         private static Dictionary<string, Texture2D> _translatedRawTextures = new Dictionary<string, Texture2D>(System.StringComparer.OrdinalIgnoreCase);

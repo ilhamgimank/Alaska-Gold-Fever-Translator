@@ -7,16 +7,13 @@ namespace AlaskaGoldFeverTranslator.Managers
 {
     public static class TranslationManager
     {
-        // Kamus untuk teks biasa
         public static Dictionary<string, string> TranslatedStrings { get; private set; }
-
-        // Kamus untuk pola Regex dinamis
         public static Dictionary<string, string> TranslatedRegexs { get; private set; }
 
-        // HashSet untuk menyimpan hasil terjemahan agar dikenali dumper (Anti-Mantul Statis)
-        public static HashSet<string> TranslatedValues { get; private set; }
+        // [FITUR BARU] Kamus terbalik (Indo -> Inggris) untuk menipu logika game (Ilusi Getter)
+        public static Dictionary<string, string> ReverseStrings { get; private set; }
 
-        // HashSet untuk menyimpan pola regex dari sisi bahasa Indonesia (Anti-Mantul Dinamis)
+        public static HashSet<string> TranslatedValues { get; private set; }
         public static HashSet<string> TranslatedRegexValuesAsPatterns { get; private set; }
 
         public static string CurrentLanguage { get; set; } = "Indonesian";
@@ -27,12 +24,13 @@ namespace AlaskaGoldFeverTranslator.Managers
         {
             TranslatedStrings = new Dictionary<string, string>(System.StringComparer.OrdinalIgnoreCase);
             TranslatedRegexs = new Dictionary<string, string>();
+            ReverseStrings = new Dictionary<string, string>(System.StringComparer.OrdinalIgnoreCase);
             TranslatedValues = new HashSet<string>(System.StringComparer.OrdinalIgnoreCase);
             TranslatedRegexValuesAsPatterns = new HashSet<string>(System.StringComparer.OrdinalIgnoreCase);
 
             LoadTranslations();
 
-            Main.Logger.LogInfo("Translation Manager initialized with Anti-Bouncing Regex Support.");
+            Main.Logger.LogInfo("Translation Manager initialized with Anti-Bouncing & Getter Illusion Support.");
         }
 
         public static void LoadTranslations()
@@ -41,6 +39,7 @@ namespace AlaskaGoldFeverTranslator.Managers
             {
                 TranslatedStrings.Clear();
                 TranslatedRegexs.Clear();
+                ReverseStrings.Clear();
                 TranslatedValues.Clear();
                 TranslatedRegexValuesAsPatterns.Clear();
             }
@@ -53,12 +52,13 @@ namespace AlaskaGoldFeverTranslator.Managers
                 {
                     ParseSimpleJson(File.ReadAllText(staticPath, System.Text.Encoding.UTF8), TranslatedStrings);
 
-                    // Daftarkan semua teks bahasa Indonesia ke memori perlindungan
                     lock (_lock)
                     {
                         foreach (var kvp in TranslatedStrings)
                         {
                             TranslatedValues.Add(kvp.Value);
+                            // [FITUR BARU] Daftarkan terjemahan ke kamus terbalik
+                            ReverseStrings[kvp.Value] = kvp.Key;
                         }
                     }
                 }
@@ -69,7 +69,6 @@ namespace AlaskaGoldFeverTranslator.Managers
                 if (File.Exists(regexPath1)) ParseSimpleJson(File.ReadAllText(regexPath1, System.Text.Encoding.UTF8), TranslatedRegexs);
                 if (File.Exists(regexPath2)) ParseSimpleJson(File.ReadAllText(regexPath2, System.Text.Encoding.UTF8), TranslatedRegexs);
 
-                // Mendaftarkan pola nilai terjemahan untuk perlindungan anti-mantul (Bouncing)
                 lock (_lock)
                 {
                     foreach (var kvp in TranslatedRegexs)
@@ -78,10 +77,8 @@ namespace AlaskaGoldFeverTranslator.Managers
                     }
                 }
 
-                // Melakukan penyimpanan ulang otomatis untuk membersihkan duplikat/format (Deduplication)
                 SaveTranslationsToFile();
-
-                Main.Logger.LogInfo($"Loaded {TranslatedStrings.Count} static strings and {TranslatedRegexs.Count} regex patterns for language: {CurrentLanguage}.");
+                Main.Logger.LogInfo($"Loaded {TranslatedStrings.Count} static strings and {TranslatedRegexs.Count} regex patterns.");
             }
             else
             {
@@ -103,7 +100,6 @@ namespace AlaskaGoldFeverTranslator.Managers
             {
                 foreach (var kvp in TranslatedRegexs)
                 {
-                    // Memastikan kita mencocokkan string dari awal (^) sampai akhir ($)
                     var match = Regex.Match(originalText, "^" + kvp.Key + "$");
                     if (match.Success)
                     {
@@ -115,13 +111,11 @@ namespace AlaskaGoldFeverTranslator.Managers
 
                         try
                         {
-                            // Menyisipkan angka/argumen kembali ke penanda {0}, {1} dll
                             translatedText = string.Format(kvp.Value, args.ToArray());
                             return true;
                         }
                         catch
                         {
-                            // Abaikan jika format terjemahan user salah (misal kurang {0})
                             return false;
                         }
                     }
@@ -137,7 +131,8 @@ namespace AlaskaGoldFeverTranslator.Managers
             lock (_lock)
             {
                 TranslatedStrings[original] = translated;
-                TranslatedValues.Add(translated); // Daftarkan ke memori perlindungan statis
+                TranslatedValues.Add(translated);
+                ReverseStrings[translated] = original; // Masukkan juga ke kamus terbalik
             }
             SaveTranslationsToFile();
         }
@@ -149,17 +144,15 @@ namespace AlaskaGoldFeverTranslator.Managers
             lock (_lock)
             {
                 TranslatedRegexs[regexKey] = translatedFormat;
-                RegisterRegexValuePattern(translatedFormat); // Daftarkan ke memori perlindungan Regex
+                RegisterRegexValuePattern(translatedFormat);
             }
             SaveRegexTranslationsToFile();
         }
 
-        // Mengonversi format {0} menjadi pola Regex asli dan mendaftarkannya sebagai Blacklist
         private static void RegisterRegexValuePattern(string translatedFormat)
         {
             if (string.IsNullOrEmpty(translatedFormat)) return;
             string escaped = EscapeForRegexPattern(translatedFormat);
-            // Mengubah \{0\} kembali menjadi (\d+) agar cocok dengan hasil tangkapan Dumper
             string pattern = Regex.Replace(escaped, @"\\\{\d+\\\}", @"(\d+)");
 
             lock (_lock)
