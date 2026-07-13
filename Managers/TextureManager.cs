@@ -7,9 +7,8 @@ namespace AlaskaGoldFeverTranslator.Managers
 {
     public static class TextureManager
     {
-#pragma warning disable
         private static Dictionary<string, Sprite> _translatedSprites = new Dictionary<string, Sprite>(System.StringComparer.OrdinalIgnoreCase);
-        // [FITUR BARU] Menyimpan Texture murni untuk RawImage (Kompas)
+        // Menyimpan Texture murni untuk RawImage (Kompas)
         private static Dictionary<string, Texture2D> _translatedRawTextures = new Dictionary<string, Texture2D>(System.StringComparer.OrdinalIgnoreCase);
 
         private static HashSet<string> _dumpedTextures = new HashSet<string>(System.StringComparer.OrdinalIgnoreCase);
@@ -78,7 +77,12 @@ namespace AlaskaGoldFeverTranslator.Managers
                 if (InvokeLoadImage(tex, fileData))
                 {
                     tex.filterMode = FilterMode.Bilinear;
-                    tex.wrapMode = TextureWrapMode.Clamp;
+
+                    // [FIX] UBAH CLAMP JADI REPEAT!
+                    // Ini wajib Repeat agar saat kompas diputar (UV Offset), 
+                    // gambarnya menyambung terus seperti roda dan tidak melar/tertarik!
+                    tex.wrapMode = TextureWrapMode.Repeat;
+
                     tex.name = fileName;
 
                     // Simpan sebagai Raw Texture (Untuk RawImage Kompas)
@@ -96,7 +100,6 @@ namespace AlaskaGoldFeverTranslator.Managers
             }
         }
 
-        // [FITUR BARU] Pembersih karakter ilegal tingkat DEWA menggunakan Regex!
         private static string SanitizeName(string name)
         {
             if (string.IsNullOrEmpty(name)) return "";
@@ -141,14 +144,11 @@ namespace AlaskaGoldFeverTranslator.Managers
 
         private static void DumpTextureInternal(Texture texture, string objectName)
         {
-            // [SISTEM ANTI-CRASH LEVEL DEWA]
-            // JANGAN menyentuh RenderTexture, Texture3D, atau Cubemap. Paksa mundur!
             if (!(texture is Texture2D)) return;
 
             // Cegah gambar berukuran tidak masuk akal (0x0) atau terlalu raksasa
             if (texture.width <= 0 || texture.height <= 0 || texture.width > 8192 || texture.height > 8192) return;
 
-            // Bersihkan nama
             string cleanName = SanitizeName(objectName);
 
             // Blokir gambar-gambar sistem internal Unity (termasuk font yang sering bikin crash)
