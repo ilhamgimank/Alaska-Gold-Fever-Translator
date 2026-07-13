@@ -2,6 +2,7 @@
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.SceneManagement;
+using AlaskaGoldFeverTranslator.Managers;
 
 namespace AlaskaGoldFeverTranslator.Features
 {
@@ -26,23 +27,23 @@ namespace AlaskaGoldFeverTranslator.Features
             _canvas = _clockObj.AddComponent<Canvas>();
             _canvas.renderMode = RenderMode.ScreenSpaceOverlay;
             _canvas.sortingOrder = 9999;
-            _canvas.enabled = false;
+
+            // [UPDATE] Menggunakan status dari Config
+            _canvas.enabled = ConfigManager.ShowAnalogClock.Value;
 
             CanvasScaler scaler = _clockObj.AddComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(1920, 1080);
 
-            // BACKGROUND
             GameObject bgObj = new GameObject("ClockBackground");
             bgObj.transform.SetParent(_clockObj.transform, false);
             Image bgImage = bgObj.AddComponent<Image>();
             bgImage.color = new Color(0.05f, 0.05f, 0.05f, 0.85f);
-            bgImage.raycastTarget = false; // [FIX] Tembus klik!
+            bgImage.raycastTarget = false;
             RectTransform bgRt = bgObj.GetComponent<RectTransform>();
             bgRt.anchorMin = new Vector2(0.5f, 1f); bgRt.anchorMax = new Vector2(0.5f, 1f); bgRt.pivot = new Vector2(0.5f, 1f);
             bgRt.anchoredPosition = new Vector2(0, -60); bgRt.sizeDelta = new Vector2(320, 110);
 
-            // PANEL KIRI (ANALOG)
             GameObject leftPanel = new GameObject("LeftPanel");
             leftPanel.transform.SetParent(bgObj.transform, false);
             RectTransform leftRt = leftPanel.AddComponent<RectTransform>();
@@ -51,33 +52,29 @@ namespace AlaskaGoldFeverTranslator.Features
 
             CreateTextUI(leftPanel.transform, "Label", "DALAM GAME", 12, new Color(0.6f, 0.6f, 0.6f), TextAnchor.UpperCenter, new Vector2(0, 1), new Vector2(1, 1), new Vector2(0.5f, 1f), new Vector2(0, -5));
 
-            // LINGKARAN JAM
             GameObject faceObj = new GameObject("AnalogFace");
             faceObj.transform.SetParent(leftPanel.transform, false);
             Image faceImg = faceObj.AddComponent<Image>();
             faceImg.sprite = Resources.GetBuiltinResource<Sprite>("Knob.png"); faceImg.color = new Color(0.1f, 0.1f, 0.1f, 0.9f);
-            faceImg.raycastTarget = false; // [FIX] Tembus klik!
+            faceImg.raycastTarget = false;
             Outline faceOutline = faceObj.AddComponent<Outline>(); faceOutline.effectColor = new Color(0.4f, 0.4f, 0.4f, 1f); faceOutline.effectDistance = new Vector2(1, -1);
             RectTransform faceRt = faceObj.GetComponent<RectTransform>();
             faceRt.anchorMin = new Vector2(0.5f, 0.5f); faceRt.anchorMax = new Vector2(0.5f, 0.5f); faceRt.pivot = new Vector2(0.5f, 0.5f);
             faceRt.sizeDelta = new Vector2(50, 50); faceRt.anchoredPosition = new Vector2(0, 0);
 
-            // JARUM JAM
             _hourHandRt = CreateHandUI(faceObj.transform, "HourHand", new Vector2(3, 14), Color.white);
             _minuteHandRt = CreateHandUI(faceObj.transform, "MinuteHand", new Vector2(2, 22), new Color(0.8f, 0.8f, 0.8f));
             _secondHandRt = CreateHandUI(faceObj.transform, "SecondHand", new Vector2(1, 24), new Color(0.9f, 0.2f, 0.2f));
 
-            // POROS TENGAH
             GameObject dotObj = new GameObject("CenterDot");
             dotObj.transform.SetParent(faceObj.transform, false);
             Image dotImg = dotObj.AddComponent<Image>(); dotImg.sprite = Resources.GetBuiltinResource<Sprite>("Knob.png"); dotImg.color = Color.white;
-            dotImg.raycastTarget = false; // [FIX] Tembus klik!
+            dotImg.raycastTarget = false;
             RectTransform dotRt = dotObj.GetComponent<RectTransform>();
             dotRt.anchorMin = new Vector2(0.5f, 0.5f); dotRt.anchorMax = new Vector2(0.5f, 0.5f); dotRt.sizeDelta = new Vector2(6, 6); dotRt.anchoredPosition = Vector2.zero;
 
             _inGameTimeText = CreateTextUI(leftPanel.transform, "Value", "--:--:--", 16, Color.white, TextAnchor.LowerCenter, new Vector2(0, 0), new Vector2(1, 0), new Vector2(0.5f, 0f), new Vector2(0, 5));
 
-            // PANEL KANAN (LOCAL)
             GameObject rightPanel = new GameObject("RightPanel");
             rightPanel.transform.SetParent(bgObj.transform, false);
             RectTransform rightRt = rightPanel.AddComponent<RectTransform>();
@@ -93,7 +90,11 @@ namespace AlaskaGoldFeverTranslator.Features
 
         private static void OnSceneLoaded(Scene scene, LoadSceneMode mode)
         {
-            if (_canvas != null) _canvas.enabled = false;
+            if (_canvas != null)
+            {
+                if (scene.buildIndex == 0 || scene.name.ToLower().Contains("menu")) _canvas.enabled = false;
+                else _canvas.enabled = ConfigManager.ShowAnalogClock.Value;
+            }
         }
 
         public static void UpdateUI()
@@ -122,19 +123,29 @@ namespace AlaskaGoldFeverTranslator.Features
 
         public static void Toggle()
         {
-            if (_canvas != null) _canvas.enabled = !_canvas.enabled;
+            if (_canvas != null)
+            {
+                _canvas.enabled = !_canvas.enabled;
+                ConfigManager.ShowAnalogClock.Value = _canvas.enabled;
+                ConfigManager.Save(); // Simpan ke Config
+            }
         }
 
         public static void Hide()
         {
-            if (_canvas != null) _canvas.enabled = false;
+            if (_canvas != null && _canvas.enabled)
+            {
+                _canvas.enabled = false;
+                ConfigManager.ShowAnalogClock.Value = false;
+                ConfigManager.Save(); // Simpan ke Config
+            }
         }
 
         private static RectTransform CreateHandUI(Transform parent, string name, Vector2 size, Color color)
         {
             GameObject hand = new GameObject(name); hand.transform.SetParent(parent, false);
             Image img = hand.AddComponent<Image>(); img.color = color;
-            img.raycastTarget = false; // [FIX] Tembus klik!
+            img.raycastTarget = false;
             RectTransform rt = hand.GetComponent<RectTransform>(); rt.sizeDelta = size;
             rt.pivot = new Vector2(0.5f, 0f); rt.anchorMin = new Vector2(0.5f, 0.5f); rt.anchorMax = new Vector2(0.5f, 0.5f); rt.anchoredPosition = Vector2.zero;
             return rt;
@@ -145,7 +156,7 @@ namespace AlaskaGoldFeverTranslator.Features
             GameObject obj = new GameObject(name); obj.transform.SetParent(parent, false);
             Text txt = obj.AddComponent<Text>(); txt.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
             txt.text = textContent; txt.fontSize = fontSize; txt.color = color; txt.alignment = alignment;
-            txt.raycastTarget = false; // [FIX] Tembus klik!
+            txt.raycastTarget = false;
             Outline outline = obj.AddComponent<Outline>(); outline.effectColor = Color.black; outline.effectDistance = new Vector2(1, -1);
             RectTransform rt = txt.rectTransform; rt.anchorMin = anchorMin; rt.anchorMax = anchorMax; rt.pivot = pivot; rt.sizeDelta = Vector2.zero; rt.anchoredPosition = anchoredPos;
             return txt;

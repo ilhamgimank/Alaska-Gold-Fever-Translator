@@ -3,8 +3,10 @@ using AlaskaGoldFeverTranslator.Features; // Untuk mengakses kodingan Auto Trans
 
 namespace AlaskaGoldFeverTranslator.Modules
 {
-    [BepInPlugin("com.ilham.agfautotranslator", "AGF Auto Translator Module", "1.0.0")]
-    [BepInDependency("com.ilham.alaskatranslator", BepInDependency.DependencyFlags.HardDependency)]
+    // [UPDATE] GUID khusus untuk Mesin Terjemahan Otomatis
+    [BepInPlugin("com.ilhamgimank.agfautotranslator", "AGF Auto Translator Module", "1.0.0")]
+    // [UPDATE] Mewajibkan mod utama dengan nama GUID baru jalan duluan
+    [BepInDependency("com.ilhamgimank.agftranslator", BepInDependency.DependencyFlags.HardDependency)]
     public class MainAutoTranslator : BaseUnityPlugin
     {
         private void Awake()
@@ -15,7 +17,6 @@ namespace AlaskaGoldFeverTranslator.Modules
             AutoTranslator.Initialize();
 
             // 2. [MODULAR LINK] Menyambungkan kabel pendengar ke Dumper Utama!
-            // Setiap kali Dumper utama berteriak, fungsi AddToQueue akan otomatis dipanggil
             TextDumper.OnTextDumped += AutoTranslator.AddToQueue;
         }
     }

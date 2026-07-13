@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using System.Text.RegularExpressions;
 using UnityEngine;
-using AlaskaGoldFeverTranslator;
 using AlaskaGoldFeverTranslator.Managers;
 using AlaskaGoldFeverTranslator.Features.TranslatorEngine;
 
@@ -11,7 +10,6 @@ namespace AlaskaGoldFeverTranslator.Features
 {
     public static class AutoTranslator
     {
-        // Struktur data untuk menyimpan tugas terjemahan
         private struct TranslationTask
         {
             public string RawText;
@@ -23,73 +21,27 @@ namespace AlaskaGoldFeverTranslator.Features
         private static Queue<TranslationTask> _translationQueue = new Queue<TranslationTask>();
         private static bool _isTranslating = false;
 
-        // Variabel untuk melacak progress log [1/20]
         private static int _totalTasksInQueue = 0;
         private static int _processedTasksCount = 0;
-
-        // Pengaman Thread-Safe agar Main Thread dan Background Thread tidak tabrakan
         private static readonly object _queueLock = new object();
-
-        // Enum untuk melacak mesin penerjemah yang aktif
-        public enum TranslationEngine { Google, MyMemory }
-        public static TranslationEngine ActiveEngine = TranslationEngine.Google; // Default pakai Google
 
         public static void Initialize()
         {
-            // Memasang pendeteksi tombol ke dalam game
             GameObject handlerObj = new GameObject("Alaska_AutoTranslatorHandler");
             UnityEngine.Object.DontDestroyOnLoad(handlerObj);
             handlerObj.AddComponent<AutoTranslatorHandler>();
 
-            Main.Logger.LogInfo($"Auto Translator queue system initialized. Active Engine: {ActiveEngine}");
-        }
-
-        private static bool IsIndonesianOrRp(string text)
-        {
-            if (string.IsNullOrEmpty(text)) return true;
-
-            // Indonesian stopwords & kata-kata sangat umum hasil translasi
-            string[] idWords = {
-                "yang", "untuk", "dengan", "adalah", "bisa", "pada", "dari", "dalam",
-                "akan", "sudah", "telah", "tidak", "bukan", "atau", "hanya", "jika",
-                "bila", "saya", "anda", "kamu", "kita", "kami", "mereka", "emas",
-                "tambang", "beliung", "uang", "pertanian", "membeli", "kumpulkan",
-                "tukarkan", "memiliki", "cukup", "tunai", "mulai", "menambang", "lengkapi"
-            };
-
-            // Blokir mutlak jika teks mengandung simbol hasil konversi mata uang rupiah
-            if (Regex.IsMatch(text, @"\b[Rr]p\b") || text.Contains("Rp.") || text.Contains("Rp ") || text.Contains("(Rp") || text.Contains("IDR"))
-                return true;
-
-            string clean = Regex.Replace(text.ToLower(), @"[^a-z\s]", " ");
-            string[] tokens = clean.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-            foreach (var token in tokens)
-            {
-                foreach (var idWord in idWords)
-                {
-                    if (token == idWord) return true;
-                }
-            }
-            return false;
+            Main.Logger.LogInfo($"Auto Translator queue system initialized. Active Engine: {ConfigManager.ActiveEngine.Value}");
         }
 
         public static void AddToQueue(string originalText, bool isRegex = false, string regexKey = null)
         {
-            // Jangan masukkan jika teks sudah ada di dalam antrean memori
             if (TranslationManager.TranslatedStrings.ContainsKey(originalText)) return;
 
-            // [DOUBLE GUARD] Cegah memasukkan teks yang sudah terjemahan Indonesia agar tidak masuk antrean
-            if (IsIndonesianOrRp(originalText))
-            {
-                Main.Logger.LogWarning($"[AutoTranslator] 🛡️ BLOCKED Indonesian/Rp text from entering queue: \"{originalText}\"");
-                return;
-            }
-
-            // Menggunakan lock agar aman jika banyak teks masuk sekaligus
             lock (_queueLock)
             {
                 _translationQueue.Enqueue(new TranslationTask { RawText = originalText, IsRegex = isRegex, RegexKey = regexKey });
-                _totalTasksInQueue++; // Tambah total antrean
+                _totalTasksInQueue++;
 
                 Main.Logger.LogInfo($"[AutoTranslator] 📥 Added to queue (Total Pending: {_totalTasksInQueue}): \"{originalText}\"");
 
@@ -111,7 +63,6 @@ namespace AlaskaGoldFeverTranslator.Features
                 int currentIndex;
                 int currentTotal;
 
-                // Ambil tugas dengan aman menggunakan Lock
                 lock (_queueLock)
                 {
                     if (_translationQueue.Count == 0)
@@ -121,65 +72,54 @@ namespace AlaskaGoldFeverTranslator.Features
                             Main.Logger.LogInfo($"[AutoTranslator] ✅ All {_totalTasksInQueue} text(s) have been successfully translated!");
                         }
 
-                        // Reset variabel antrean
                         _totalTasksInQueue = 0;
                         _processedTasksCount = 0;
                         _isTranslating = false;
-                        break; // Keluar dari loop
+                        break;
                     }
 
                     task = _translationQueue.Dequeue();
                     _processedTasksCount++;
 
-                    // Simpan variabel lokal untuk kebutuhan log di luar lock
                     currentIndex = _processedTasksCount;
                     currentTotal = _totalTasksInQueue;
                 }
 
-                // Jeda 2 detik untuk menghindari IP diblokir API
                 await Task.Delay(2000);
 
-                // --- SMART TAG MASKER (Anti-Terjemah Kode Warna & Sprite) ---
                 List<string> protectedTags = new List<string>();
                 string textToTranslate = Regex.Replace(task.RawText, @"<[^>]+>", match =>
                 {
                     protectedTags.Add(match.Value);
-                    char letter = (char)('A' + (protectedTags.Count - 1)); // Menjadi A, B, C, dst.
+                    char letter = (char)('A' + (protectedTags.Count - 1));
                     return $"__TAG_{letter}__";
                 });
 
                 string translatedText = null;
 
-                // Mengeksekusi mesin terjemahan sesuai dengan pilihan yang sedang aktif
-                if (ActiveEngine == TranslationEngine.Google)
+                if (ConfigManager.ActiveEngine.Value == TranslatorEngineType.Google)
                 {
                     translatedText = await GoogleTranslate.TranslateAsync(textToTranslate, "en", "id");
                 }
-                else if (ActiveEngine == TranslationEngine.MyMemory)
+                else if (ConfigManager.ActiveEngine.Value == TranslatorEngineType.MyMemory)
                 {
                     translatedText = await MyMemoryTranslate.TranslateAsync(textToTranslate, "en", "id");
                 }
 
                 if (!string.IsNullOrEmpty(translatedText))
                 {
-                    // Lakukan filter jika ternyata hasil terjemahannya sama persis (Google gagal translate)
                     if (translatedText.Trim().Equals(task.RawText.Trim(), StringComparison.OrdinalIgnoreCase))
                     {
                         Main.Logger.LogWarning($"[AutoTranslator] [{currentIndex}/{currentTotal}] ⚠️ Skipped (Identical Result): \"{task.RawText}\"");
                         continue;
                     }
 
-                    // [PERBAIKAN BUG] Hapus pengecekan IsIndonesianOrRp di sini!
-                    // Tentu saja hasilnya bahasa Indonesia, jadi tidak boleh diblokir!
-
                     if (task.IsRegex)
                     {
-                        // Menyulap angka murni menjadi parameter {0}, {1}
                         int counter = 0;
                         translatedText = Regex.Replace(translatedText, @"\d+", match => "{" + (counter++) + "}");
                     }
 
-                    // --- UNMASK: Mengembalikan Tag aslinya ke dalam teks ---
                     for (int i = 0; i < protectedTags.Count; i++)
                     {
                         char letter = (char)('A' + i);
@@ -202,20 +142,20 @@ namespace AlaskaGoldFeverTranslator.Features
         }
     }
 
-    // Handler untuk menangkap kombinasi tombol ganti mesin
     public class AutoTranslatorHandler : MonoBehaviour
     {
         void Update()
         {
-            // Cek jika tombol Shift Kanan ditahan dan tombol T ditekan
             if (Input.GetKey(KeyCode.RightShift) && Input.GetKeyDown(KeyCode.T))
             {
-                // Menukar mesin (Tukar (Toggle))
-                AutoTranslator.ActiveEngine = AutoTranslator.ActiveEngine == AutoTranslator.TranslationEngine.Google
-                    ? AutoTranslator.TranslationEngine.MyMemory
-                    : AutoTranslator.TranslationEngine.Google;
+                ConfigManager.ActiveEngine.Value = ConfigManager.ActiveEngine.Value == TranslatorEngineType.Google
+                    ? TranslatorEngineType.MyMemory
+                    : TranslatorEngineType.Google;
 
-                Main.Logger.LogInfo($"[AutoTranslator] 🔄 Translation Engine switched to: {AutoTranslator.ActiveEngine}");
+                // Menyimpan pilihan mesin secara permanen ke file config!
+                ConfigManager.Save();
+
+                Main.Logger.LogInfo($"[AutoTranslator] 🔄 Translation Engine switched to: {ConfigManager.ActiveEngine.Value}");
             }
         }
     }

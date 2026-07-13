@@ -2,39 +2,32 @@
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
 using System.Collections.Generic;
+using AlaskaGoldFeverTranslator.Managers;
 
 namespace AlaskaGoldFeverTranslator.Features
 {
     public static class PathDetector
     {
-        // Menyimpan nama game dan developer (Sistem bawaan Fase 1)
         public static string GameName { get; private set; }
         public static string DeveloperName { get; private set; }
 
-        // Variabel kontrol dan penampung data scanner
         public static bool IsEnabled = true;
         public static bool IsAdvanced = false;
 
         public static string LastScannedSpriteName = "";
-
-        // Menambahkan variabel penampung untuk rangkuman hasil akhir
         public static string PickedSpriteName = "";
         public static string PickedPath = "";
         public static string PickedObjectName = "";
 
-        // Method untuk inisialisasi awal
         public static void Initialize()
         {
-            // Mengambil info dari engine Unity
             GameName = Application.productName;
             DeveloperName = Application.companyName;
 
-            // Log informasi dalam bahasa inggris
             Main.Logger.LogInfo($"Game Detected: {GameName}");
             Main.Logger.LogInfo($"Developer Detected: {DeveloperName}");
             Main.Logger.LogInfo($"Game Path: {Application.dataPath}");
 
-            // Membuat GameObject tersembunyi agar fungsi HandleInput dapat berjalan di Update loop
             GameObject handlerObj = new GameObject("Alaska_PathDetectorHandler");
             Object.DontDestroyOnLoad(handlerObj);
             handlerObj.AddComponent<PathDetectorHandler>();
@@ -42,7 +35,6 @@ namespace AlaskaGoldFeverTranslator.Features
             Main.Logger.LogInfo("Path Detector with Advanced Scanner and Cursor Unlocker initialized.");
         }
 
-        // Komponen MonoBehaviour internal untuk mendeteksi input setiap frame
         private class PathDetectorHandler : MonoBehaviour
         {
             void Update()
@@ -51,22 +43,34 @@ namespace AlaskaGoldFeverTranslator.Features
             }
         }
 
-        // Fungsi utama untuk mendeteksi input dari pengguna
         public static void HandleInput()
         {
             if (!IsEnabled) return;
 
-            // [FITUR BARU] Toggle Kursor Bebas dengan tombol F8
+            // Saklar Pause Auto-Dumper menggunakan F9 dengan Config Saver
+            if (Input.GetKeyDown(KeyCode.F9))
+            {
+                ConfigManager.EnableAutoDumper.Value = !ConfigManager.EnableAutoDumper.Value;
+                ConfigManager.Save(); // Simpan permanen
+
+                if (!ConfigManager.EnableAutoDumper.Value)
+                {
+                    Main.Logger.LogInfo("⏸️ [Dev Mode] Auto-Dumper PAUSED (Safe to open Unity Explorer). Config Saved.");
+                }
+                else
+                {
+                    Main.Logger.LogInfo("▶️ [Dev Mode] Auto-Dumper RESUMED. Config Saved.");
+                }
+            }
+
             if (Input.GetKeyDown(KeyCode.F8))
             {
-                // Jika kursor sedang dikunci/disembunyikan oleh game, kita paksa muncul!
                 if (Cursor.lockState == CursorLockMode.Locked || !Cursor.visible)
                 {
                     Cursor.lockState = CursorLockMode.None;
                     Cursor.visible = true;
                     Main.Logger.LogInfo("🔓 [Dev Mode] Cursor UNLOCKED and VISIBLE for scanning!");
                 }
-                // Jika ditekan lagi, kembalikan ke game
                 else
                 {
                     Cursor.lockState = CursorLockMode.Locked;
@@ -75,20 +79,17 @@ namespace AlaskaGoldFeverTranslator.Features
                 }
             }
 
-            // [PERBAIKAN] Tekan Ctrl Kanan + Klik Kanan untuk Scan Teks (Aman dari jongkok & lari!)
             if (Input.GetKey(KeyCode.RightControl) && Input.GetMouseButtonDown(1))
             {
                 ScanObjectUnderMouse();
             }
 
-            // Tekan Alt Kiri/Kanan + Klik Kanan untuk Scan Tekstur
             if ((Input.GetKey(KeyCode.LeftAlt) || Input.GetKey(KeyCode.RightAlt)) && Input.GetMouseButtonDown(1))
             {
                 PickTextureUnderMouse();
             }
         }
 
-        // Scanner Tekstur/Gambar (Filter Area & Daftar Hitam)
         private static void PickTextureUnderMouse()
         {
             PickedSpriteName = "";
@@ -103,7 +104,6 @@ namespace AlaskaGoldFeverTranslator.Features
 
             float smallestArea = float.MaxValue;
 
-            // 1. ABSOLUTE UI SCANNER
             Image[] allImages = Object.FindObjectsByType<Image>(FindObjectsSortMode.None);
             foreach (Image img in allImages)
             {
@@ -130,7 +130,6 @@ namespace AlaskaGoldFeverTranslator.Features
                 }
             }
 
-            // 2. RAYCAST SCANNER
             if (EventSystem.current != null)
             {
                 PointerEventData pointerData = new PointerEventData(EventSystem.current) { position = mousePos };
@@ -165,7 +164,6 @@ namespace AlaskaGoldFeverTranslator.Features
                 }
             }
 
-            // 3. PHYSICS SCANNER
             if (foundCount == 0)
             {
                 Ray ray = Camera.main.ScreenPointToRay(mousePos);
@@ -190,7 +188,6 @@ namespace AlaskaGoldFeverTranslator.Features
                 }
             }
 
-            // 4. ABSOLUTE 2D SCANNER
             if (foundCount == 0)
             {
                 smallestArea = float.MaxValue;
@@ -218,7 +215,6 @@ namespace AlaskaGoldFeverTranslator.Features
                 }
             }
 
-            // Hasil Akhir
             if (foundCount == 0)
             {
                 Main.Logger.LogInfo("[Texture Picker] No Sprite Found!");
@@ -253,7 +249,6 @@ namespace AlaskaGoldFeverTranslator.Features
             return false;
         }
 
-        // Scanner untuk komponen Teks UI
         private static void ScanObjectUnderMouse()
         {
             Main.Logger.LogInfo("---------------------------------------------");
@@ -265,7 +260,6 @@ namespace AlaskaGoldFeverTranslator.Features
             Vector2 mousePos = Input.mousePosition;
             LastScannedSpriteName = "";
 
-            // A. Pengecekan UGUI Text
             Text[] allTexts = Object.FindObjectsByType<Text>(FindObjectsSortMode.None);
             foreach (Text t in allTexts)
             {
@@ -276,7 +270,6 @@ namespace AlaskaGoldFeverTranslator.Features
                 }
             }
 
-            // B. Pengecekan TextMeshPro UI menggunakan HarmonyLib
             System.Type tmpType = HarmonyLib.AccessTools.TypeByName("TMPro.TextMeshProUGUI");
             if (tmpType != null)
             {
@@ -298,7 +291,6 @@ namespace AlaskaGoldFeverTranslator.Features
                 }
             }
 
-            // C. Pengecekan TextMesh 3D
             TextMesh[] allMesh = Object.FindObjectsByType<TextMesh>(FindObjectsSortMode.None);
             foreach (TextMesh tm in allMesh)
             {
@@ -309,7 +301,6 @@ namespace AlaskaGoldFeverTranslator.Features
                 }
             }
 
-            // Fallback: Raycast
             if (foundCount == 0 || IsAdvanced)
             {
                 if (EventSystem.current != null)

@@ -8,8 +8,8 @@ using AlaskaGoldFeverTranslator.Patches;
 
 namespace AlaskaGoldFeverTranslator
 {
-    // Versi 1.0.0 karena arsitektur modular baru yang canggih!
-    [BepInPlugin("com.ilham.alaskatranslator", "Alaska Gold Fever Translator Core", "1.0.0")]
+    // [UPDATE] GUID baru untuk mod utama
+    [BepInPlugin("com.ilhamgimank.agftranslator", "Alaska Gold Fever Translator Core", "1.0.0")]
     public class Main : BaseUnityPlugin
     {
         public static new ManualLogSource Logger;
@@ -20,7 +20,10 @@ namespace AlaskaGoldFeverTranslator
             Logger = base.Logger;
             Logger.LogInfo("Plugin Alaska Gold Fever Translator CORE v1.0.0 is loaded!");
 
-            // 1. Inisialisasi Manajer Inti (Struktur Folder & Memori Teks/Gambar)
+            // 0. Inisialisasi Config System (Sekarang dipanggil tanpa parameter karena pakai file khusus)
+            ConfigManager.Initialize();
+
+            // 1. Inisialisasi Manajer Inti
             FileManager.Initialize();
             TranslationManager.Initialize();
             TextureManager.Initialize();
@@ -31,17 +34,10 @@ namespace AlaskaGoldFeverTranslator
             SceneScanner.Initialize();
             PathDetector.Initialize();
 
-            // CATATAN PENTING MODULAR: 
-            // GameTimeManager, DigitalClock, AnalogClock, AutoTranslator, dan CompassPatch 
-            // TIDAK LAGI diinisialisasi di sini. Mereka hidup mandiri di modul DLL mereka masing-masing!
-
-            // 3. Menerapkan Semua Patch (Pencegatan Engine Unity)
-            _harmony = new Harmony("com.ilham.alaskatranslator");
-
-            // Menerapkan patch yang menggunakan atribut [HarmonyPatch] secara otomatis (seperti UGUIDumper)
+            // 3. Menerapkan Semua Patch dengan GUID baru
+            _harmony = new Harmony("com.ilhamgimank.agftranslator");
             _harmony.PatchAll();
 
-            // Menerapkan patch khusus (Dynamic AccessTools)
             TextPatch.ApplyPatch(_harmony);
             ImagePatch.ApplyPatch(_harmony);
             TMPDumper.ApplyPatch(_harmony);

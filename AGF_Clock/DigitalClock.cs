@@ -2,6 +2,7 @@
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.SceneManagement;
+using AlaskaGoldFeverTranslator.Managers;
 
 namespace AlaskaGoldFeverTranslator.Features
 {
@@ -23,23 +24,23 @@ namespace AlaskaGoldFeverTranslator.Features
             _canvas = _clockObj.AddComponent<Canvas>();
             _canvas.renderMode = RenderMode.ScreenSpaceOverlay;
             _canvas.sortingOrder = 9999;
-            _canvas.enabled = false;
+
+            // [UPDATE] Menggunakan status dari Config
+            _canvas.enabled = ConfigManager.ShowDigitalClock.Value;
 
             CanvasScaler scaler = _clockObj.AddComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(1920, 1080);
 
-            // BACKGROUND
             GameObject bgObj = new GameObject("ClockBackground");
             bgObj.transform.SetParent(_clockObj.transform, false);
             Image bgImage = bgObj.AddComponent<Image>();
             bgImage.color = new Color(0.05f, 0.05f, 0.05f, 0.85f);
-            bgImage.raycastTarget = false; // [FIX] Tembus klik!
+            bgImage.raycastTarget = false;
             RectTransform bgRt = bgObj.GetComponent<RectTransform>();
             bgRt.anchorMin = new Vector2(0.5f, 1f); bgRt.anchorMax = new Vector2(0.5f, 1f); bgRt.pivot = new Vector2(0.5f, 1f);
             bgRt.anchoredPosition = new Vector2(0, -60); bgRt.sizeDelta = new Vector2(280, 60);
 
-            // PANEL KIRI (IN-GAME)
             GameObject leftPanel = new GameObject("LeftPanel");
             leftPanel.transform.SetParent(bgObj.transform, false);
             RectTransform leftRt = leftPanel.AddComponent<RectTransform>();
@@ -49,7 +50,6 @@ namespace AlaskaGoldFeverTranslator.Features
             CreateTextUI(leftPanel.transform, "Label", "DALAM GAME", 12, new Color(0.6f, 0.6f, 0.6f), TextAnchor.LowerCenter, new Vector2(0, 0.5f), new Vector2(1, 1), new Vector2(0.5f, 0.5f), Vector2.zero);
             _inGameTimeText = CreateTextUI(leftPanel.transform, "Value", "--:--:--", 24, Color.white, TextAnchor.UpperCenter, new Vector2(0, 0), new Vector2(1, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero);
 
-            // PANEL KANAN (LOCAL)
             GameObject rightPanel = new GameObject("RightPanel");
             rightPanel.transform.SetParent(bgObj.transform, false);
             RectTransform rightRt = rightPanel.AddComponent<RectTransform>();
@@ -66,7 +66,7 @@ namespace AlaskaGoldFeverTranslator.Features
         private static void OnSceneLoaded(Scene scene, LoadSceneMode mode)
         {
             if (_canvas != null)
-                _canvas.enabled = (scene.buildIndex != 0 && !scene.name.ToLower().Contains("menu"));
+                _canvas.enabled = (scene.buildIndex != 0 && !scene.name.ToLower().Contains("menu")) && ConfigManager.ShowDigitalClock.Value;
         }
 
         public static void UpdateUI()
@@ -83,12 +83,22 @@ namespace AlaskaGoldFeverTranslator.Features
 
         public static void Toggle()
         {
-            if (_canvas != null) _canvas.enabled = !_canvas.enabled;
+            if (_canvas != null)
+            {
+                _canvas.enabled = !_canvas.enabled;
+                ConfigManager.ShowDigitalClock.Value = _canvas.enabled;
+                ConfigManager.Save(); // Simpan permanen!
+            }
         }
 
         public static void Hide()
         {
-            if (_canvas != null) _canvas.enabled = false;
+            if (_canvas != null && _canvas.enabled)
+            {
+                _canvas.enabled = false;
+                ConfigManager.ShowDigitalClock.Value = false;
+                ConfigManager.Save(); // Simpan permanen!
+            }
         }
 
         private static Text CreateTextUI(Transform parent, string name, string textContent, int fontSize, Color color, TextAnchor alignment, Vector2 anchorMin, Vector2 anchorMax, Vector2 pivot, Vector2 anchoredPos)
@@ -96,7 +106,7 @@ namespace AlaskaGoldFeverTranslator.Features
             GameObject obj = new GameObject(name); obj.transform.SetParent(parent, false);
             Text txt = obj.AddComponent<Text>(); txt.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
             txt.text = textContent; txt.fontSize = fontSize; txt.color = color; txt.alignment = alignment;
-            txt.raycastTarget = false; // [FIX] Tembus klik!
+            txt.raycastTarget = false;
             Outline outline = obj.AddComponent<Outline>(); outline.effectColor = Color.black; outline.effectDistance = new Vector2(1, -1);
             RectTransform rt = txt.rectTransform; rt.anchorMin = anchorMin; rt.anchorMax = anchorMax; rt.pivot = pivot; rt.sizeDelta = Vector2.zero; rt.anchoredPosition = anchoredPos;
             return txt;
