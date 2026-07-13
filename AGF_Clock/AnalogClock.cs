@@ -1,5 +1,4 @@
-﻿// Features/AnalogClock.cs (Modul khusus UI Jam Analog mekanik)
-using System;
+﻿using System;
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.SceneManagement;
@@ -9,7 +8,7 @@ namespace AlaskaGoldFeverTranslator.Features
     public static class AnalogClock
     {
         private static GameObject _clockObj;
-        private static Canvas _canvas; // [FIX] Kita gunakan Canvas untuk hide/show
+        private static Canvas _canvas;
         private static Text _localTimeText;
         private static Text _inGameTimeText;
         private static RectTransform _hourHandRt;
@@ -18,7 +17,6 @@ namespace AlaskaGoldFeverTranslator.Features
 
         public static void Initialize()
         {
-            // [FIX] Otomatis menyalakan Otak Jam agar bebas error!
             GameTimeManager.Initialize();
 
             _clockObj = new GameObject("Alaska_UI_AnalogClock");
@@ -28,7 +26,7 @@ namespace AlaskaGoldFeverTranslator.Features
             _canvas = _clockObj.AddComponent<Canvas>();
             _canvas.renderMode = RenderMode.ScreenSpaceOverlay;
             _canvas.sortingOrder = 9999;
-            _canvas.enabled = false; // [FIX] Sembunyikan UI-nya saja, script tetap hidup!
+            _canvas.enabled = false;
 
             CanvasScaler scaler = _clockObj.AddComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
@@ -39,6 +37,7 @@ namespace AlaskaGoldFeverTranslator.Features
             bgObj.transform.SetParent(_clockObj.transform, false);
             Image bgImage = bgObj.AddComponent<Image>();
             bgImage.color = new Color(0.05f, 0.05f, 0.05f, 0.85f);
+            bgImage.raycastTarget = false; // [FIX] Tembus klik!
             RectTransform bgRt = bgObj.GetComponent<RectTransform>();
             bgRt.anchorMin = new Vector2(0.5f, 1f); bgRt.anchorMax = new Vector2(0.5f, 1f); bgRt.pivot = new Vector2(0.5f, 1f);
             bgRt.anchoredPosition = new Vector2(0, -60); bgRt.sizeDelta = new Vector2(320, 110);
@@ -57,6 +56,7 @@ namespace AlaskaGoldFeverTranslator.Features
             faceObj.transform.SetParent(leftPanel.transform, false);
             Image faceImg = faceObj.AddComponent<Image>();
             faceImg.sprite = Resources.GetBuiltinResource<Sprite>("Knob.png"); faceImg.color = new Color(0.1f, 0.1f, 0.1f, 0.9f);
+            faceImg.raycastTarget = false; // [FIX] Tembus klik!
             Outline faceOutline = faceObj.AddComponent<Outline>(); faceOutline.effectColor = new Color(0.4f, 0.4f, 0.4f, 1f); faceOutline.effectDistance = new Vector2(1, -1);
             RectTransform faceRt = faceObj.GetComponent<RectTransform>();
             faceRt.anchorMin = new Vector2(0.5f, 0.5f); faceRt.anchorMax = new Vector2(0.5f, 0.5f); faceRt.pivot = new Vector2(0.5f, 0.5f);
@@ -71,6 +71,7 @@ namespace AlaskaGoldFeverTranslator.Features
             GameObject dotObj = new GameObject("CenterDot");
             dotObj.transform.SetParent(faceObj.transform, false);
             Image dotImg = dotObj.AddComponent<Image>(); dotImg.sprite = Resources.GetBuiltinResource<Sprite>("Knob.png"); dotImg.color = Color.white;
+            dotImg.raycastTarget = false; // [FIX] Tembus klik!
             RectTransform dotRt = dotObj.GetComponent<RectTransform>();
             dotRt.anchorMin = new Vector2(0.5f, 0.5f); dotRt.anchorMax = new Vector2(0.5f, 0.5f); dotRt.sizeDelta = new Vector2(6, 6); dotRt.anchoredPosition = Vector2.zero;
 
@@ -133,6 +134,7 @@ namespace AlaskaGoldFeverTranslator.Features
         {
             GameObject hand = new GameObject(name); hand.transform.SetParent(parent, false);
             Image img = hand.AddComponent<Image>(); img.color = color;
+            img.raycastTarget = false; // [FIX] Tembus klik!
             RectTransform rt = hand.GetComponent<RectTransform>(); rt.sizeDelta = size;
             rt.pivot = new Vector2(0.5f, 0f); rt.anchorMin = new Vector2(0.5f, 0.5f); rt.anchorMax = new Vector2(0.5f, 0.5f); rt.anchoredPosition = Vector2.zero;
             return rt;
@@ -143,6 +145,7 @@ namespace AlaskaGoldFeverTranslator.Features
             GameObject obj = new GameObject(name); obj.transform.SetParent(parent, false);
             Text txt = obj.AddComponent<Text>(); txt.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
             txt.text = textContent; txt.fontSize = fontSize; txt.color = color; txt.alignment = alignment;
+            txt.raycastTarget = false; // [FIX] Tembus klik!
             Outline outline = obj.AddComponent<Outline>(); outline.effectColor = Color.black; outline.effectDistance = new Vector2(1, -1);
             RectTransform rt = txt.rectTransform; rt.anchorMin = anchorMin; rt.anchorMax = anchorMax; rt.pivot = pivot; rt.sizeDelta = Vector2.zero; rt.anchoredPosition = anchoredPos;
             return txt;

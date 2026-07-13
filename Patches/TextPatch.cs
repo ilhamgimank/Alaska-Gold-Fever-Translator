@@ -1,5 +1,4 @@
-﻿// Patches/TextPatch.cs (Fitur untuk menerapkan terjemahan ke teks in-game secara instan)
-using HarmonyLib;
+﻿using HarmonyLib;
 using UnityEngine.UI;
 using UnityEngine;
 using System.Reflection;
@@ -27,8 +26,6 @@ namespace AlaskaGoldFeverTranslator.Patches
             }
 
             value = CurrencyConverter.Convert(value);
-            // [UPDATE MODULAR] Konversi Mata Angin Kompas dihapus dari TextPatch Utama.
-            // Biarkan modul AGF_Compas.dll yang menanganinya nanti dengan Harmony Patch sendiri!
         }
     }
 
@@ -38,24 +35,27 @@ namespace AlaskaGoldFeverTranslator.Patches
     {
         static void Postfix(Text __instance)
         {
-            if (__instance == null || string.IsNullOrEmpty(__instance.text)) return;
-
-            TextDumper.DumpString(__instance.text, "UI-Prefab", false);
-
-            string currentText = __instance.text;
-            if (TranslationManager.TryGetTranslation(currentText, out string translatedText) ||
-                TranslationManager.TryGetRegexTranslation(currentText, out translatedText))
+            try
             {
-                currentText = translatedText;
-            }
+                if (__instance == null || string.IsNullOrEmpty(__instance.text)) return;
 
-            currentText = CurrencyConverter.Convert(currentText);
-            // [UPDATE MODULAR] Hapus CompassConverter dari sini
+                TextDumper.DumpString(__instance.text, "UI-Prefab", false);
 
-            if (__instance.text != currentText)
-            {
-                __instance.text = currentText;
+                string currentText = __instance.text;
+                if (TranslationManager.TryGetTranslation(currentText, out string translatedText) ||
+                    TranslationManager.TryGetRegexTranslation(currentText, out translatedText))
+                {
+                    currentText = translatedText;
+                }
+
+                currentText = CurrencyConverter.Convert(currentText);
+
+                if (__instance.text != currentText)
+                {
+                    __instance.text = currentText;
+                }
             }
+            catch { }
         }
     }
 
@@ -83,10 +83,9 @@ namespace AlaskaGoldFeverTranslator.Patches
 
                 var catchMethod = typeof(TextPatch).GetMethod(nameof(CatchPrefabText), BindingFlags.Static | BindingFlags.NonPublic);
 
+                // [FIX] Hanya gunakan OnEnable! Awake dan Start dihapus agar Dropdown menu tidak crash!
                 MethodInfo[] lifecycleMethods = {
-                    AccessTools.Method(tmpTextType, "Awake"),
-                    AccessTools.Method(tmpTextType, "OnEnable"),
-                    AccessTools.Method(tmpTextType, "Start")
+                    AccessTools.Method(tmpTextType, "OnEnable")
                 };
 
                 foreach (var method in lifecycleMethods)
@@ -118,7 +117,6 @@ namespace AlaskaGoldFeverTranslator.Patches
             }
 
             value = CurrencyConverter.Convert(value);
-            // [UPDATE MODULAR] Hapus CompassConverter dari sini
         }
 
         private static void SetTextPrefix(Component __instance, ref string __0)
@@ -134,37 +132,39 @@ namespace AlaskaGoldFeverTranslator.Patches
             }
 
             __0 = CurrencyConverter.Convert(__0);
-            // [UPDATE MODULAR] Hapus CompassConverter dari sini
         }
 
         private static void CatchPrefabText(Component __instance)
         {
             if (__instance == null) return;
 
-            var prop = __instance.GetType().GetProperty("text");
-            if (prop != null)
+            try
             {
-                string originalText = prop.GetValue(__instance, null) as string;
-                if (!string.IsNullOrEmpty(originalText))
+                var prop = __instance.GetType().GetProperty("text");
+                if (prop != null)
                 {
-                    TextDumper.DumpString(originalText, "TMP-Prefab", false);
-
-                    string newText = originalText;
-                    if (TranslationManager.TryGetTranslation(originalText, out string translatedText) ||
-                        TranslationManager.TryGetRegexTranslation(originalText, out translatedText))
+                    string originalText = prop.GetValue(__instance, null) as string;
+                    if (!string.IsNullOrEmpty(originalText))
                     {
-                        newText = translatedText;
-                    }
+                        TextDumper.DumpString(originalText, "TMP-Prefab", false);
 
-                    newText = CurrencyConverter.Convert(newText);
-                    // [UPDATE MODULAR] Hapus CompassConverter dari sini
+                        string newText = originalText;
+                        if (TranslationManager.TryGetTranslation(originalText, out string translatedText) ||
+                            TranslationManager.TryGetRegexTranslation(originalText, out translatedText))
+                        {
+                            newText = translatedText;
+                        }
 
-                    if (originalText != newText)
-                    {
-                        prop.SetValue(__instance, newText, null);
+                        newText = CurrencyConverter.Convert(newText);
+
+                        if (originalText != newText)
+                        {
+                            prop.SetValue(__instance, newText, null);
+                        }
                     }
                 }
             }
+            catch { }
         }
     }
 }

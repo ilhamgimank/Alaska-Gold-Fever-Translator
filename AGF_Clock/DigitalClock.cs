@@ -1,5 +1,4 @@
-﻿// Features/DigitalClock.cs (Modul khusus UI Jam Digital)
-using System;
+﻿using System;
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.SceneManagement;
@@ -9,13 +8,12 @@ namespace AlaskaGoldFeverTranslator.Features
     public static class DigitalClock
     {
         private static GameObject _clockObj;
-        private static Canvas _canvas; // [FIX] Kita gunakan Canvas untuk hide/show, bukan SetActive
+        private static Canvas _canvas;
         private static Text _localTimeText;
         private static Text _inGameTimeText;
 
         public static void Initialize()
         {
-            // [FIX] Otomatis menyalakan Otak Jam agar bebas error!
             GameTimeManager.Initialize();
 
             _clockObj = new GameObject("Alaska_UI_DigitalClock");
@@ -25,7 +23,7 @@ namespace AlaskaGoldFeverTranslator.Features
             _canvas = _clockObj.AddComponent<Canvas>();
             _canvas.renderMode = RenderMode.ScreenSpaceOverlay;
             _canvas.sortingOrder = 9999;
-            _canvas.enabled = false; // [FIX] Sembunyikan UI-nya saja, script tetap hidup!
+            _canvas.enabled = false;
 
             CanvasScaler scaler = _clockObj.AddComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
@@ -36,6 +34,7 @@ namespace AlaskaGoldFeverTranslator.Features
             bgObj.transform.SetParent(_clockObj.transform, false);
             Image bgImage = bgObj.AddComponent<Image>();
             bgImage.color = new Color(0.05f, 0.05f, 0.05f, 0.85f);
+            bgImage.raycastTarget = false; // [FIX] Tembus klik!
             RectTransform bgRt = bgObj.GetComponent<RectTransform>();
             bgRt.anchorMin = new Vector2(0.5f, 1f); bgRt.anchorMax = new Vector2(0.5f, 1f); bgRt.pivot = new Vector2(0.5f, 1f);
             bgRt.anchoredPosition = new Vector2(0, -60); bgRt.sizeDelta = new Vector2(280, 60);
@@ -97,6 +96,7 @@ namespace AlaskaGoldFeverTranslator.Features
             GameObject obj = new GameObject(name); obj.transform.SetParent(parent, false);
             Text txt = obj.AddComponent<Text>(); txt.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
             txt.text = textContent; txt.fontSize = fontSize; txt.color = color; txt.alignment = alignment;
+            txt.raycastTarget = false; // [FIX] Tembus klik!
             Outline outline = obj.AddComponent<Outline>(); outline.effectColor = Color.black; outline.effectDistance = new Vector2(1, -1);
             RectTransform rt = txt.rectTransform; rt.anchorMin = anchorMin; rt.anchorMax = anchorMax; rt.pivot = pivot; rt.sizeDelta = Vector2.zero; rt.anchoredPosition = anchoredPos;
             return txt;
