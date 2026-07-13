@@ -9,28 +9,24 @@ namespace AlaskaGoldFeverTranslator.Patches
     {
         public static void ApplyPatch(Harmony harmony)
         {
-            // 1. Patch ke Setingan Sprite (UGUI Image)
             var imageSetter = AccessTools.PropertySetter(typeof(Image), "sprite");
             if (imageSetter != null) harmony.Patch(imageSetter, prefix: new HarmonyMethod(typeof(ImagePatch), nameof(ImageSpritePrefix)));
 
             var imageOnEnable = AccessTools.Method(typeof(Image), "OnEnable");
             if (imageOnEnable != null) harmony.Patch(imageOnEnable, postfix: new HarmonyMethod(typeof(ImagePatch), nameof(ImageOnEnablePostfix)));
 
-            // 2. Patch ke SpriteRenderer (Untuk gambar dunia 2D/3D non-UI)
             var srSetter = AccessTools.PropertySetter(typeof(SpriteRenderer), "sprite");
             if (srSetter != null) harmony.Patch(srSetter, prefix: new HarmonyMethod(typeof(ImagePatch), nameof(SpriteRendererPrefix)));
 
-            // 3. Patch Khusus RawImage (Untuk menangkap Texture Kompas!)
             var rawImageSetter = AccessTools.PropertySetter(typeof(RawImage), "texture");
             if (rawImageSetter != null) harmony.Patch(rawImageSetter, prefix: new HarmonyMethod(typeof(ImagePatch), nameof(RawImageTexturePrefix)));
 
             var rawImageOnEnable = AccessTools.Method(typeof(RawImage), "OnEnable");
             if (rawImageOnEnable != null) harmony.Patch(rawImageOnEnable, postfix: new HarmonyMethod(typeof(ImagePatch), nameof(RawImageOnEnablePostfix)));
 
-            Main.Logger.LogInfo("Texture Replacer (Sprite & RawImage) patches applied successfully.");
+            Main.Logger.LogInfo("Texture Replacer (Stable Version) patches applied successfully.");
         }
 
-        // --- SPRITE PATCHES ---
         private static void ImageSpritePrefix(ref Sprite value)
         {
             try
@@ -64,7 +60,6 @@ namespace AlaskaGoldFeverTranslator.Patches
             catch { }
         }
 
-        // --- RAW IMAGE PATCHES (KOMPAS) ---
         private static void RawImageTexturePrefix(ref Texture value)
         {
             try

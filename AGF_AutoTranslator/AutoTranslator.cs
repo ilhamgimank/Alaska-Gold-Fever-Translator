@@ -78,7 +78,7 @@ namespace AlaskaGoldFeverTranslator.Features
             // Jangan masukkan jika teks sudah ada di dalam antrean memori
             if (TranslationManager.TranslatedStrings.ContainsKey(originalText)) return;
 
-            // [DOUBLE GUARD] Cegah memasukkan teks yang sudah terjemahan Indonesia atau sudah dikonversi ke Rp
+            // [DOUBLE GUARD] Cegah memasukkan teks yang sudah terjemahan Indonesia agar tidak masuk antrean
             if (IsIndonesianOrRp(originalText))
             {
                 Main.Logger.LogWarning($"[AutoTranslator] 🛡️ BLOCKED Indonesian/Rp text from entering queue: \"{originalText}\"");
@@ -162,19 +162,15 @@ namespace AlaskaGoldFeverTranslator.Features
 
                 if (!string.IsNullOrEmpty(translatedText))
                 {
-                    // Lakukan filter jika ternyata hasil terjemahannya sama persis, kosong, atau mengandung Rp
+                    // Lakukan filter jika ternyata hasil terjemahannya sama persis (Google gagal translate)
                     if (translatedText.Trim().Equals(task.RawText.Trim(), StringComparison.OrdinalIgnoreCase))
                     {
                         Main.Logger.LogWarning($"[AutoTranslator] [{currentIndex}/{currentTotal}] ⚠️ Skipped (Identical Result): \"{task.RawText}\"");
                         continue;
                     }
 
-                    if (IsIndonesianOrRp(translatedText))
-                    {
-                        // Jika hasil terjemahan secara tidak sengaja mengembalikan Rp dari API (sangat jarang terjadi)
-                        Main.Logger.LogWarning($"[AutoTranslator] [{currentIndex}/{currentTotal}] ⚠️ Skipped (Result has Rp): \"{translatedText}\"");
-                        continue;
-                    }
+                    // [PERBAIKAN BUG] Hapus pengecekan IsIndonesianOrRp di sini!
+                    // Tentu saja hasilnya bahasa Indonesia, jadi tidak boleh diblokir!
 
                     if (task.IsRegex)
                     {

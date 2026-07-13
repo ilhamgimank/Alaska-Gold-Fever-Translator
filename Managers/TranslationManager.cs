@@ -1,5 +1,4 @@
-﻿// Managers/TranslationManager.cs (Manajer untuk memuat dan menyimpan teks terjemahan)
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.IO;
 using System.Text.RegularExpressions;
 
@@ -9,28 +8,22 @@ namespace AlaskaGoldFeverTranslator.Managers
     {
         public static Dictionary<string, string> TranslatedStrings { get; private set; }
         public static Dictionary<string, string> TranslatedRegexs { get; private set; }
-
-        // [FITUR BARU] Kamus terbalik (Indo -> Inggris) untuk menipu logika game (Ilusi Getter)
-        public static Dictionary<string, string> ReverseStrings { get; private set; }
-
         public static HashSet<string> TranslatedValues { get; private set; }
         public static HashSet<string> TranslatedRegexValuesAsPatterns { get; private set; }
 
         public static string CurrentLanguage { get; set; } = "Indonesian";
-
         private static readonly object _lock = new object();
 
         public static void Initialize()
         {
             TranslatedStrings = new Dictionary<string, string>(System.StringComparer.OrdinalIgnoreCase);
             TranslatedRegexs = new Dictionary<string, string>();
-            ReverseStrings = new Dictionary<string, string>(System.StringComparer.OrdinalIgnoreCase);
             TranslatedValues = new HashSet<string>(System.StringComparer.OrdinalIgnoreCase);
             TranslatedRegexValuesAsPatterns = new HashSet<string>(System.StringComparer.OrdinalIgnoreCase);
 
             LoadTranslations();
 
-            Main.Logger.LogInfo("Translation Manager initialized with Anti-Bouncing & Getter Illusion Support.");
+            Main.Logger.LogInfo("Translation Manager initialized (Clean Stable Version).");
         }
 
         public static void LoadTranslations()
@@ -39,7 +32,6 @@ namespace AlaskaGoldFeverTranslator.Managers
             {
                 TranslatedStrings.Clear();
                 TranslatedRegexs.Clear();
-                ReverseStrings.Clear();
                 TranslatedValues.Clear();
                 TranslatedRegexValuesAsPatterns.Clear();
             }
@@ -57,8 +49,6 @@ namespace AlaskaGoldFeverTranslator.Managers
                         foreach (var kvp in TranslatedStrings)
                         {
                             TranslatedValues.Add(kvp.Value);
-                            // [FITUR BARU] Daftarkan terjemahan ke kamus terbalik
-                            ReverseStrings[kvp.Value] = kvp.Key;
                         }
                     }
                 }
@@ -79,10 +69,6 @@ namespace AlaskaGoldFeverTranslator.Managers
 
                 SaveTranslationsToFile();
                 Main.Logger.LogInfo($"Loaded {TranslatedStrings.Count} static strings and {TranslatedRegexs.Count} regex patterns.");
-            }
-            else
-            {
-                Main.Logger.LogWarning($"Language folder for {CurrentLanguage} not found.");
             }
         }
 
@@ -132,7 +118,6 @@ namespace AlaskaGoldFeverTranslator.Managers
             {
                 TranslatedStrings[original] = translated;
                 TranslatedValues.Add(translated);
-                ReverseStrings[translated] = original; // Masukkan juga ke kamus terbalik
             }
             SaveTranslationsToFile();
         }
