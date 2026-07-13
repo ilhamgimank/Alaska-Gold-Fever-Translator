@@ -1,4 +1,4 @@
-﻿// Features/TextDumper.cs (Fitur dumper teks utama dengan Regex Auto-Formatter & Debouncer)
+﻿using System;
 using System.IO;
 using System.Collections.Generic;
 using System.Threading.Tasks;
@@ -9,10 +9,12 @@ namespace AlaskaGoldFeverTranslator.Features
 {
     public static class TextDumper
     {
+        // [MODULAR EVENT] Event jembatan agar Mod AutoTranslator bisa mendengarkan teks baru tanpa saling mengikat!
+        public static event Action<string, bool, string> OnTextDumped;
+
         public static string UntranslatedStringsPath { get; private set; }
         public static string UntranslatedRegexPath { get; private set; }
 
-        // [FITUR BARU] Saklar Pause untuk mencegah spam dari Unity Explorer
         public static bool IsPaused = false;
 
 #pragma warning disable
@@ -77,20 +79,52 @@ namespace AlaskaGoldFeverTranslator.Features
             return s.Replace("\\\"", "\"").Replace("\\n", "\n").Replace("\\r", "\r").Replace("\\t", "\t").Replace("\\\\", "\\");
         }
 
+        private static bool IsIndonesianText(string text)
+        {
+            if (string.IsNullOrEmpty(text)) return false;
+
+            // Indonesian stopwords dan kata-kata translasi sangat umum yang mustahil ada di game Inggris asli
+            string[] idWords = {
+                "yang", "untuk", "dengan", "adalah", "bisa", "pada", "dari", "dalam",
+                "akan", "sudah", "telah", "tidak", "bukan", "atau", "hanya", "jika",
+                "bila", "saya", "anda", "kamu", "kita", "kami", "mereka", "emas",
+                "tambang", "beliung", "uang", "pertanian", "membeli", "kumpulkan",
+                "tukarkan", "memiliki", "cukup", "tunai", "mulai", "menambang", "lengkapi"
+            };
+
+            // Bersihkan teks dari simbol dan angka untuk pemindaian kata murni
+            string clean = Regex.Replace(text.ToLower(), @"[^a-z\s]", " ");
+            string[] tokens = clean.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+
+            foreach (var token in tokens)
+            {
+                foreach (var idWord in idWords)
+                {
+                    if (token == idWord) return true;
+                }
+            }
+            return false;
+        }
+
         private static bool IsSpamText(string text, string uiType)
         {
             if (string.IsNullOrWhiteSpace(text)) return true;
             if (text.Contains("Lorem ipsum") || text.Contains("Lorem Ipsum") || text.StartsWith("Lorem")) return true;
             if (text.Contains("/") && !Regex.IsMatch(text, @"[a-zA-Z]")) return true;
-            if (text.Contains("Rp.") && Regex.IsMatch(text, @"Rp.\s*\d+")) return true;
+
+            // [SISTEM FILTER ANTI-CRASH & ANTI-BOUNCING DEWA]
+            // Blokir total jika teks mengandung mata uang IDR hasil konversi "Rp." atau "IDR"
+            if (Regex.IsMatch(text, @"\b[Rr]p\b") || text.Contains("Rp.") || text.Contains("Rp ") || text.Contains("(Rp") || text.Contains("IDR")) return true;
+
+            // Blokir total jika teks sudah terdeteksi sebagai bahasa Indonesia hasil translasi
+            if (IsIndonesianText(text)) return true;
+
             if (System.Text.RegularExpressions.Regex.IsMatch(text, @"^Slot\s+\d+$")) return true;
             if (text.Length <= 1 && char.IsDigit(text[0])) return true;
 
-            // [FITUR BARU] Memblokir teks dari UI Mod AGFCore, Unity Explorer, dan UI Jam kita sendiri
             string[] modKeywords = new string[] {
                 "AGFCore", "AGFMods", "ClockMod", "Clock Mod", "BepInEx", "UnityExplorer",
                 "DALAM GAME", "LOKAL", "--:--:--",
-                // [UPDATE] Daftar hitam tambahan dari deretan mod AGF pihak ketiga:
                 "ContestTimer", "FastTravel", "MinecartUpgrade", "MineReset",
                 "MinersLantern", "MoreGems", "TrackBreak", "TreeFeller",
                 "WorkerDays", "WorkerPassThrough", "WorkerPayments"
@@ -147,13 +181,11 @@ namespace AlaskaGoldFeverTranslator.Features
 
         public static void DumpString(string text, string uiType, bool isRegex = false)
         {
-            // [FITUR BARU] Jika tombol saklar F9 ditekan, blokir fungsi dumper secara instan!
             if (IsPaused) return;
 
             if (string.IsNullOrWhiteSpace(text)) return;
             if (IsSpamText(text, uiType)) return;
 
-            // [ANTI-BOUNCING KRUSIAL] Mencegah teks yang sudah berwujud terjemahan Indonesia masuk ke Dumper!
             if (TranslationManager.TranslatedStrings.ContainsKey(text)) return;
             if (TranslationManager.TranslatedValues.Contains(text)) return;
 
@@ -166,14 +198,12 @@ namespace AlaskaGoldFeverTranslator.Features
             {
                 string safePattern = EscapeForRegex(text);
 
-                // [PERBAIKAN] Smart Regex Replacer: 
-                // Mengubah angka menjadi (\d+), TAPI MENGABAIKAN angka yang ada di dalam tag HTML (<size=70%>)
                 string regexKey = Regex.Replace(safePattern, @"<[^>]+>|\d+", match =>
                 {
                     if (match.Value.StartsWith("<") && match.Value.EndsWith(">"))
-                        return match.Value; // Biarkan tag utuh
+                        return match.Value;
 
-                    return @"(\d+)"; // Ubah angka biasa jadi parameter regex
+                    return @"(\d+)";
                 });
 
                 if (regexKey != safePattern)
@@ -195,7 +225,8 @@ namespace AlaskaGoldFeverTranslator.Features
                     {
                         Main.Logger.LogInfo($"[{uiType}][New Auto-Regex] \"{regexKey}\"");
                         RequestSave();
-                        AutoTranslator.AddToQueue(text, true, regexKey);
+                        // [MODULAR UPDATE] Berteriak lewat event (Mod AutoTranslator akan mendengarnya)
+                        OnTextDumped?.Invoke(text, true, regexKey);
                     }
                     return;
                 }
@@ -215,7 +246,8 @@ namespace AlaskaGoldFeverTranslator.Features
             {
                 Main.Logger.LogInfo($"[{uiType}][New Static Text Dumped] \"{text}\"");
                 RequestSave();
-                AutoTranslator.AddToQueue(text);
+                // [MODULAR UPDATE] Berteriak lewat event
+                OnTextDumped?.Invoke(text, false, null);
             }
         }
 

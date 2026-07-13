@@ -13,6 +13,7 @@ namespace AlaskaGoldFeverTranslator.Patches
     public static class UGUITextSetterPatch
     {
         [HarmonyPriority(Priority.First)]
+#pragma warning disable
         static void Prefix(Text __instance, ref string value)
         {
             if (string.IsNullOrEmpty(value)) return;
@@ -26,8 +27,8 @@ namespace AlaskaGoldFeverTranslator.Patches
             }
 
             value = CurrencyConverter.Convert(value);
-            // [FITUR BARU] Konversi Mata Angin Kompas
-            value = CompassConverter.Convert(value, __instance);
+            // [UPDATE MODULAR] Konversi Mata Angin Kompas dihapus dari TextPatch Utama.
+            // Biarkan modul AGF_Compas.dll yang menanganinya nanti dengan Harmony Patch sendiri!
         }
     }
 
@@ -49,8 +50,7 @@ namespace AlaskaGoldFeverTranslator.Patches
             }
 
             currentText = CurrencyConverter.Convert(currentText);
-            // [FITUR BARU] Konversi Mata Angin Kompas
-            currentText = CompassConverter.Convert(currentText, __instance);
+            // [UPDATE MODULAR] Hapus CompassConverter dari sini
 
             if (__instance.text != currentText)
             {
@@ -118,8 +118,7 @@ namespace AlaskaGoldFeverTranslator.Patches
             }
 
             value = CurrencyConverter.Convert(value);
-            // [FITUR BARU] Konversi Mata Angin Kompas
-            value = CompassConverter.Convert(value, __instance);
+            // [UPDATE MODULAR] Hapus CompassConverter dari sini
         }
 
         private static void SetTextPrefix(Component __instance, ref string __0)
@@ -135,8 +134,7 @@ namespace AlaskaGoldFeverTranslator.Patches
             }
 
             __0 = CurrencyConverter.Convert(__0);
-            // [FITUR BARU] Konversi Mata Angin Kompas
-            __0 = CompassConverter.Convert(__0, __instance);
+            // [UPDATE MODULAR] Hapus CompassConverter dari sini
         }
 
         private static void CatchPrefabText(Component __instance)
@@ -159,8 +157,7 @@ namespace AlaskaGoldFeverTranslator.Patches
                     }
 
                     newText = CurrencyConverter.Convert(newText);
-                    // [FITUR BARU] Konversi Mata Angin Kompas
-                    newText = CompassConverter.Convert(newText, __instance);
+                    // [UPDATE MODULAR] Hapus CompassConverter dari sini
 
                     if (originalText != newText)
                     {

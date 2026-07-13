@@ -7,6 +7,7 @@ namespace AlaskaGoldFeverTranslator.Managers
 {
     public static class TextureManager
     {
+#pragma warning disable
         private static Dictionary<string, Sprite> _translatedSprites = new Dictionary<string, Sprite>(System.StringComparer.OrdinalIgnoreCase);
         // [FITUR BARU] Menyimpan Texture murni untuk RawImage (Kompas)
         private static Dictionary<string, Texture2D> _translatedRawTextures = new Dictionary<string, Texture2D>(System.StringComparer.OrdinalIgnoreCase);
@@ -95,25 +96,22 @@ namespace AlaskaGoldFeverTranslator.Managers
             }
         }
 
-        // [FITUR BARU] Pembersih karakter ilegal agar Windows tidak error saat menamai file!
+        // [FITUR BARU] Pembersih karakter ilegal tingkat DEWA menggunakan Regex!
         private static string SanitizeName(string name)
         {
             if (string.IsNullOrEmpty(name)) return "";
-            string clean = name.Replace("(Clone)", "").Trim();
+            string clean = name.Replace("(Clone)", "");
 
-            // Mengubah semua karakter terlarang windows (: ? < > * dll) menjadi garis bawah (_)
-            foreach (char c in Path.GetInvalidFileNameChars())
-            {
-                clean = clean.Replace(c, '_');
-            }
-            return clean;
+            // Sapu bersih! HANYA boleh Huruf, Angka, Spasi, Strip (-), dan Garis Bawah (_)
+            clean = System.Text.RegularExpressions.Regex.Replace(clean, @"[^a-zA-Z0-9\-_ ]", "_");
+
+            return clean.Trim();
         }
 
         public static bool TryGetTranslatedSprite(string spriteName, out Sprite translatedSprite)
         {
             translatedSprite = null;
             if (string.IsNullOrEmpty(spriteName)) return false;
-            // [UPDATE] Gunakan SanitizeName
             return _translatedSprites.TryGetValue(SanitizeName(spriteName), out translatedSprite);
         }
 
@@ -121,7 +119,6 @@ namespace AlaskaGoldFeverTranslator.Managers
         {
             translatedTex = null;
             if (string.IsNullOrEmpty(texName)) return false;
-            // [UPDATE] Gunakan SanitizeName
             if (_translatedRawTextures.TryGetValue(SanitizeName(texName), out Texture2D t2d))
             {
                 translatedTex = t2d;
@@ -144,11 +141,21 @@ namespace AlaskaGoldFeverTranslator.Managers
 
         private static void DumpTextureInternal(Texture texture, string objectName)
         {
-            // [UPDATE] Gunakan nama yang sudah bersih dan aman untuk Windows
+            // [SISTEM ANTI-CRASH LEVEL DEWA]
+            // JANGAN menyentuh RenderTexture, Texture3D, atau Cubemap. Paksa mundur!
+            if (!(texture is Texture2D)) return;
+
+            // Cegah gambar berukuran tidak masuk akal (0x0) atau terlalu raksasa
+            if (texture.width <= 0 || texture.height <= 0 || texture.width > 8192 || texture.height > 8192) return;
+
+            // Bersihkan nama
             string cleanName = SanitizeName(objectName);
 
-            if (string.IsNullOrEmpty(cleanName) || cleanName == "Background" || cleanName == "UISprite" || cleanName == "Knob" ||
-                cleanName == "UIMask" || cleanName == "Checkmark" || cleanName == "DropdownArrow" || cleanName.StartsWith("Unity"))
+            // Blokir gambar-gambar sistem internal Unity (termasuk font yang sering bikin crash)
+            if (string.IsNullOrEmpty(cleanName) || cleanName.Replace("_", "").Trim() == "" ||
+                cleanName == "Background" || cleanName == "UISprite" || cleanName == "Knob" ||
+                cleanName == "UIMask" || cleanName == "Checkmark" || cleanName == "DropdownArrow" ||
+                cleanName.StartsWith("Unity") || cleanName.StartsWith("Font") || cleanName.StartsWith("Arial"))
                 return;
 
             if (_dumpedTextures.Contains(cleanName)) return;

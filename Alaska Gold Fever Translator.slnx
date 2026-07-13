@@ -1,3 +1,6 @@
 <Solution>
+  <Project Path="AGF_AutoTranslator/AGF_AutoTranslator.csproj" Id="c9d99ae4-80a4-425b-a883-1fe6646931cd" />
+  <Project Path="AGF_Clock/AGF_Clock.csproj" Id="17c6226a-4f6a-4e28-af7e-c3c2dbd6d0e3" />
+  <Project Path="AGF_Compas/AGF_Compass.csproj" Id="0fb90a52-3efd-464c-95c1-41268dba208f" />
   <Project Path="Alaska Gold Fever Translator.csproj" Id="bb2cd477-3026-49ef-9196-e1a7e7e1c5b8" />
 </Solution>

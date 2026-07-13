@@ -121,23 +121,16 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="Features\AnalogClock.cs" />
-    <Compile Include="Features\AutoTranslator.cs" />
-    <Compile Include="Features\CompassConverter.cs" />
     <Compile Include="Features\CurrencyConverter.cs" />
-    <Compile Include="Features\DigitalClock.cs" />
     <Compile Include="Features\Dumpers\FairyGUIDumper.cs" />
     <Compile Include="Features\Dumpers\IMGUIDumper.cs" />
     <Compile Include="Features\Dumpers\TextMeshDumper.cs" />
     <Compile Include="Features\Dumpers\TMPDumper.cs" />
     <Compile Include="Features\Dumpers\UGUIDumper.cs" />
-    <Compile Include="Features\Translator Engine\MyMemoryTranslate.cs" />
-    <Compile Include="Managers\GameTimeManager.cs" />
     <Compile Include="Features\LiveUpdater.cs" />
     <Compile Include="Features\PathDetector.cs" />
     <Compile Include="Features\SceneScanner.cs" />
     <Compile Include="Features\TextDumper.cs" />
-    <Compile Include="Features\Translator Engine\GoogleTranslate.cs" />
     <Compile Include="Main.cs" />
     <Compile Include="Managers\FileManager.cs" />
     <Compile Include="Managers\TextureManager.cs" />
