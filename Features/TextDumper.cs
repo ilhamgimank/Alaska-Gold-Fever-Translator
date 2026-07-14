@@ -18,8 +18,8 @@ namespace AlaskaGoldFeverTranslator.Features
         public static bool IsPaused = false;
 
 #pragma warning disable
-        private static HashSet<string> _dumpedStrings = new HashSet<string>();
-        private static HashSet<string> _dumpedRegexs = new HashSet<string>();
+        private static HashSet<string> _dumpedStrings = new HashSet<string>(System.StringComparer.OrdinalIgnoreCase);
+        private static HashSet<string> _dumpedRegexs = new HashSet<string>(System.StringComparer.OrdinalIgnoreCase);
 
         private static readonly object _lock = new object();
         private static bool _savePending = false;
@@ -34,7 +34,7 @@ namespace AlaskaGoldFeverTranslator.Features
             CreateJsonFileIfNotExists(UntranslatedStringsPath, "{\n}");
             CreateJsonFileIfNotExists(UntranslatedRegexPath, "{\n}");
 
-            Main.Logger.LogInfo("Text Dumper initialized. Old dumps loaded and preserved safely.");
+            Main.Logger.LogInfo("Text Dumper initialized. Old dumps loaded and preserved safely (Smart Merge Active).");
         }
 
         private static void CreateJsonFileIfNotExists(string path, string defaultContent)
@@ -48,13 +48,29 @@ namespace AlaskaGoldFeverTranslator.Features
 
         private static void LoadExistingDumps()
         {
-            if (File.Exists(UntranslatedStringsPath))
+            LoadDumpSafe(UntranslatedStringsPath, _dumpedStrings);
+            LoadDumpSafe(UntranslatedRegexPath, _dumpedRegexs);
+        }
+
+        private static void LoadDumpSafe(string path, HashSet<string> targetSet)
+        {
+            if (File.Exists(path))
             {
-                ParseJsonToHashSet(File.ReadAllText(UntranslatedStringsPath, System.Text.Encoding.UTF8), _dumpedStrings);
-            }
-            if (File.Exists(UntranslatedRegexPath))
-            {
-                ParseJsonToHashSet(File.ReadAllText(UntranslatedRegexPath, System.Text.Encoding.UTF8), _dumpedRegexs);
+                try
+                {
+                    string json;
+                    // Membaca file dengan aman meskipun sedang dibuka di Notepad
+                    using (FileStream fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                    using (StreamReader sr = new StreamReader(fs, System.Text.Encoding.UTF8))
+                    {
+                        json = sr.ReadToEnd();
+                    }
+                    ParseJsonToHashSet(json, targetSet);
+                }
+                catch (Exception ex)
+                {
+                    Main.Logger.LogError($"Failed to load dump {Path.GetFileName(path)}: {ex.Message}");
+                }
             }
         }
 
@@ -79,11 +95,16 @@ namespace AlaskaGoldFeverTranslator.Features
             return s.Replace("\\\"", "\"").Replace("\\n", "\n").Replace("\\r", "\r").Replace("\\t", "\t").Replace("\\\\", "\\");
         }
 
+        private static string EscapeForJson(string s)
+        {
+            if (string.IsNullOrEmpty(s)) return "";
+            return s.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\n", "\\n").Replace("\r", "\\r").Replace("\t", "\\t");
+        }
+
         private static bool IsIndonesianText(string text)
         {
             if (string.IsNullOrEmpty(text)) return false;
 
-            // Indonesian stopwords dan kata-kata translasi sangat umum yang mustahil ada di game Inggris asli
             string[] idWords = {
                 "yang", "untuk", "dengan", "adalah", "bisa", "pada", "dari", "dalam",
                 "akan", "sudah", "telah", "tidak", "bukan", "atau", "hanya", "jika",
@@ -92,7 +113,6 @@ namespace AlaskaGoldFeverTranslator.Features
                 "tukarkan", "memiliki", "cukup", "tunai", "mulai", "menambang", "lengkapi"
             };
 
-            // Bersihkan teks dari simbol dan angka untuk pemindaian kata murni
             string clean = Regex.Replace(text.ToLower(), @"[^a-z\s]", " ");
             string[] tokens = clean.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
 
@@ -112,11 +132,8 @@ namespace AlaskaGoldFeverTranslator.Features
             if (text.Contains("Lorem ipsum") || text.Contains("Lorem Ipsum") || text.StartsWith("Lorem")) return true;
             if (text.Contains("/") && !Regex.IsMatch(text, @"[a-zA-Z]")) return true;
 
-            // [SISTEM FILTER ANTI-CRASH & ANTI-BOUNCING DEWA]
-            // Blokir total jika teks mengandung mata uang IDR hasil konversi "Rp." atau "IDR"
             if (Regex.IsMatch(text, @"\b[Rr]p\b") || text.Contains("Rp.") || text.Contains("Rp ") || text.Contains("(Rp") || text.Contains("IDR")) return true;
 
-            // Blokir total jika teks sudah terdeteksi sebagai bahasa Indonesia hasil translasi
             if (IsIndonesianText(text)) return true;
 
             if (System.Text.RegularExpressions.Regex.IsMatch(text, @"^Slot\s+\d+$")) return true;
@@ -225,7 +242,6 @@ namespace AlaskaGoldFeverTranslator.Features
                     {
                         Main.Logger.LogInfo($"[{uiType}][New Auto-Regex] \"{regexKey}\"");
                         RequestSave();
-                        // [MODULAR UPDATE] Berteriak lewat event (Mod AutoTranslator akan mendengarnya)
                         OnTextDumped?.Invoke(text, true, regexKey);
                     }
                     return;
@@ -246,7 +262,6 @@ namespace AlaskaGoldFeverTranslator.Features
             {
                 Main.Logger.LogInfo($"[{uiType}][New Static Text Dumped] \"{text}\"");
                 RequestSave();
-                // [MODULAR UPDATE] Berteriak lewat event
                 OnTextDumped?.Invoke(text, false, null);
             }
         }
@@ -267,21 +282,77 @@ namespace AlaskaGoldFeverTranslator.Features
 
         private static void SaveDataToFile(string path, HashSet<string> dataSet, bool isRegex)
         {
+            bool mergeSuccess = true;
+
+            // [UPDATE BARU] Gunakan List untuk mempertahankan urutan baris!
+            List<string> orderedKeys = new List<string>();
+            HashSet<string> seenKeys = new HashSet<string>(System.StringComparer.OrdinalIgnoreCase);
+
+            // [SMART MERGE] Baca hardisk dulu untuk nge-backup kalau ada editan manual di Notepad!
+            if (File.Exists(path))
+            {
+                try
+                {
+                    string json;
+                    // FileShare.ReadWrite memungkinkan Notepad dan Game akses file bebarengan
+                    using (FileStream fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                    using (StreamReader sr = new StreamReader(fs, System.Text.Encoding.UTF8))
+                    {
+                        json = sr.ReadToEnd();
+                    }
+
+                    // Tarik kembali key yang ada di Notepad ke memori sesuai urutannya (ATAS)
+                    string pattern = "\"((?:[^\"\\\\]|\\\\.)*)\"\\s*:";
+                    MatchCollection matches = Regex.Matches(json, pattern);
+                    foreach (Match match in matches)
+                    {
+                        string key = UnescapeFromJson(match.Groups[1].Value);
+                        if (!string.IsNullOrEmpty(key) && !seenKeys.Contains(key))
+                        {
+                            seenKeys.Add(key);
+                            orderedKeys.Add(key); // Masukkan urutan lama di ATAS
+                        }
+                    }
+                }
+                catch (System.Exception ex)
+                {
+                    Main.Logger.LogError($"[Dumper] Smart Merge Failed! Wiping prevention activated for {Path.GetFileName(path)}. Error: " + ex.Message);
+                    mergeSuccess = false; // CEGAH PENYIMPANAN AGAR DATA NOTEPAD TIDAK HILANG!
+                }
+            }
+
+            // Kalau gagal baca, BATALKAN proses nge-save!
+            if (!mergeSuccess) return;
+
+            // Gabungkan hasil tangkapan baru dari RAM, letakkan di urutan (BAWAH)
+            lock (_lock)
+            {
+                foreach (var item in dataSet)
+                {
+                    if (!seenKeys.Contains(item))
+                    {
+                        seenKeys.Add(item);
+                        orderedKeys.Add(item); // Masukkan teks baru di BAWAH
+                    }
+                }
+
+                // Sinkronkan balik ke RAM agar RAM punya data yang berurutan rapi
+                dataSet.Clear();
+                foreach (var item in orderedKeys)
+                {
+                    dataSet.Add(item);
+                }
+            }
+
+            // Baru deh kita simpan semua gabungannya sesuai urutan!
             try
             {
                 var sb = new System.Text.StringBuilder();
                 sb.AppendLine("{");
 
-                string[] currentStrings;
-                lock (_lock)
+                for (int i = 0; i < orderedKeys.Count; i++)
                 {
-                    currentStrings = new string[dataSet.Count];
-                    dataSet.CopyTo(currentStrings);
-                }
-
-                for (int i = 0; i < currentStrings.Length; i++)
-                {
-                    string rawKey = currentStrings[i];
+                    string rawKey = orderedKeys[i];
                     string escapedKey = EscapeForJson(rawKey);
                     string escapedValue;
 
@@ -311,23 +382,23 @@ namespace AlaskaGoldFeverTranslator.Features
                     }
 
                     sb.Append($"  \"{escapedKey}\": \"{escapedValue}\"");
-                    if (i < currentStrings.Length - 1) sb.AppendLine(",");
+                    if (i < orderedKeys.Count - 1) sb.AppendLine(",");
                     else sb.AppendLine();
                 }
 
                 sb.AppendLine("}");
-                File.WriteAllText(path, sb.ToString(), System.Text.Encoding.UTF8);
+
+                // Menggunakan FileStream Create agar lebih kokoh saat menulis
+                using (FileStream fs = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.Read))
+                using (StreamWriter sw = new StreamWriter(fs, System.Text.Encoding.UTF8))
+                {
+                    sw.Write(sb.ToString());
+                }
             }
             catch (System.Exception ex)
             {
                 Main.Logger.LogError($"[Dumper] Error saving JSON to {Path.GetFileName(path)}: {ex.Message}");
             }
-        }
-
-        private static string EscapeForJson(string s)
-        {
-            if (string.IsNullOrEmpty(s)) return "";
-            return s.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\n", "\\n").Replace("\r", "\\r").Replace("\t", "\\t");
         }
     }
 }
